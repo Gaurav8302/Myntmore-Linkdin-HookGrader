@@ -1,0 +1,123 @@
+﻿Systems & AI Automation Intern Assignment: Round 2
+Myntmore
+Please make a copy of this document before starting. Rename it: FULL NAME – Systems & AI Automation Intern (Round 2)
+👋  Before You Begin
+Please fill in the details below:
+Name:  _______________________________________
+Email:  _______________________________________
+⚙️  Guidelines
+    • Use our stack: build with the tools listed below, the same ones our team uses every day.
+    • Think like an operator: handle messy data and failures on purpose, not just the happy path.
+    • Drafts only: never send an email or message to a real person.
+    • Keep secrets safe: no API keys or passwords in your repo, screenshots or video.
+📚  About Myntmore: Read This First
+Myntmore is a B2B growth marketing and AI-led outbound agency based in Mumbai. We help founders, CXOs, and expert-led businesses turn LinkedIn into a predictable engine for qualified sales meetings.
+This round is about the system behind our lead magnets: 9 free AI tools on our website. A visitor fills a short form and uses a tool, and each session is saved as one row: who they are, what they typed, and what the tool returned. Sales then tries to book a call through myntmore.com/founder-meeting.
+🔗  Resources: Review Before Starting
+Website:  https://myntmore.com
+Free AI tools:  https://www.myntmore.com/resources/tools
+Product Video:  https://www.loom.com/share/143c7b6ae41242bbbad797539987d214
+Services Doc:  https://myntmoreservices.notion.site/Myntmore-Growth-Marketing-Services-26b522641d388077a463e86ae78f02bc
+Sample data: leads.csv, attached to the email (20 fictional tool sessions)
+🧰  The Stack: Use These
+For	Use
+Automation	Make, Zapier, n8n, etc.
+AI	Google Gemini (gemini-2.5-flash), with a free API key from Google AI Studio
+Database	Supabase
+Web app	Next.js, code on GitHub, deployed on Vercel
+Video	Loom
+
+Free plans are enough. AI coding assistants such as Claude Code / Codex are fine, as long as you can explain what you built.
+📝  The Assignment: 3 Tasks
+01) Build the Lead Follow-Up Engine (main task)
+Import leads.csv into a Supabase table. It holds 20 fictional tool sessions, and some rows are messy on purpose. Then build an automation using Make, Zapier, n8n:
+    • Cleans the data. Handle duplicates, test entries and non-buyers on purpose, and record a reason. Never drop a row silently.
+    • Scores each lead from 1 to 10 for fit with one of our services (personal branding, LinkedIn outreach, cold email, lead generation), with a one-line reason. Say which parts are rules and which are Gemini.
+    • Writes a follow-up email with Gemini that uses what the lead typed and what the tool returned. No jargon or em dashes, no invented numbers or claims, under 120 words, and only myntmore.com/founder-meeting as the call link.
+    • Routes each lead: Hot (draft email plus an alert), Warm (one nurture email drafted) or Not a fit (tagged with the reason, no email).
+Bonus: enrich leads with company size, funding or LinkedIn activity. Show it on 3 real companies, since the sample people are fictional.
+Your scoring rules, and which parts are rules vs Gemini:
+ 
+ 
+ 
+02) Ship a 10th Free Tool: the LinkedIn Hook Grader
+A visitor pastes the first two lines of a LinkedIn post and gets a score and 3 rewrites. Try our LinkedIn Profile Optimizer first to see the pattern.
+    • Build it in Next.js on Vercel: a landing screen, a contact form (name, designation, email), the tool, then the results.
+    • Score the hook with code, not AI: 4 to 6 rules, a score out of 100, and one line for each rule that fails. The same hook always gets the same score.
+    • Get 3 rewrites from Gemini as structured JSON (responseSchema), following the Task 01 writing rules.
+    • Save each session (contact, hook, score, rewrites) as one row in Supabase, and send it to your Task 01 scenario through a Make.com webhook.
+One plain page is enough.
+03) Ops Judgement (written, 1 page max)
+Answer each question in the space below it.
+3a. A silent bug
+Leads from the Battle Card and Case Study tools reach Zoho CRM, but Supabase has none of their sessions. The other 7 tools are fine. What is wrong, how do you fix it, and how do you stop it from failing silently again?
+
+constraint leads_source_check check (source in (
+  'roi_calculator', 'icp_builder', 'profile_optimizer',
+  'dm_angle_generator', 'lead_magnet_ideas',
+  'posting_rhythm_builder', 'founder_presence_analyzer'
+))
+async function saveLead(source: LeadSource, lead: LeadForm) {
+  postToZohoForm(source, lead);
+  const { data, error } = await supabase
+    .from("leads").insert({ source, ...lead }).select().single();
+  if (error) console.error("lead insert failed", error);
+  return data?.id; // later used to save the tool's inputs and outputs
+}
+Your answer:
+ 
+ 
+ 
+3b. AI search
+Ask ChatGPT, Perplexity and Gemini 5 questions a potential client would ask. Does Myntmore appear, and who appears instead? Name the 3 website changes you would make first.
+Results
+#	AI	Question asked	Does Myntmore appear? (Yes/No, position)	Who appears instead	What the answer said (1 line)	Sources the AI cited	Screenshot
+1	ChatGPT						
+1	Perplexity						
+1	Gemini						
+2	ChatGPT						
+2	Perplexity						
+2	Gemini						
+3	ChatGPT						
+3	Perplexity						
+3	Gemini						
+4	ChatGPT						
+4	Perplexity						
+4	Gemini						
+5	ChatGPT						
+5	Perplexity						
+5	Gemini						
+Your 3 website changes
+#	Website change	Why (what you saw in the answers above)	Which questions it would help
+1			
+2			
+3			
+🎥  Walk Us Through It on a Loom
+Record one video, 5 to 7 minutes long, with your camera on. Show us these four things, in this order:
+    1. Your follow-up engine (Task 01) working: run it on leads.csv and show the results in Zoho CRM.
+    2. Your Hook Grader (Task 02) working: use it like a visitor would
+    3. How you built it: walk through your automation. Point out which steps follow fixed rules you wrote and which steps use Gemini.
+    4. What's missing: what doesn't work yet, and what you would fix next with more time.
+Clear and honest beats polished. We want to hear what you think.
+🎯  What We Are Actually Evaluating
+    • It works end to end (25%): Task 01 on the sample leads, and a Task 02 lead flowing through it
+    • Follow-up quality (15%): personal, and following the writing rules
+    • Built to reuse (15%): easy to add a tool or a rule, and failures are visible
+    • The Hook Grader (15%): deployed, a consistent score, structured AI output
+    • Messy data (10%): every odd row handled on purpose
+    • Judgement (10%): your Task 03 answers
+    • Initiative and communication (10%): going beyond the brief, and explaining it simply
+💡  One Thing Before You Start
+Open leads.csv and read every row before you build anything. Real form data is messy, and how you handle the odd rows will tell us more than how polished your workflow looks.
+📤  Submission
+    • Make a copy and rename it: FULL NAME – Systems & AI Automation Intern (Round 2)
+    • Fill in your links in the table below
+    • Ensure all Drive links are set to Anyone with the link can view
+    • Save as PDF and reply to the same email thread with the attached file
+
+Item	Link
+Loom video	
+Live Hook Grader URL	
+GitHub repo	
+
+Good luck. We are rooting for you.

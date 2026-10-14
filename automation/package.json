@@ -1,0 +1,28 @@
+{
+  "name": "myntmore-lead-automation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Task 1 — Lead Follow-up Automation for Myntmore (cleaning, scoring, drafts, routing)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "process:csv": "tsx src/cli.ts process-csv",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "csv-parse": "^5.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}

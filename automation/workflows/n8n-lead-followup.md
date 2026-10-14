@@ -1,44 +1,58 @@
 # n8n Task 1 runtime — Lead Follow-up
 
-**Status:** Executable workflow on this n8n instance (CSV dry-run).  
+**Status:** Active local workflow.  
 **Workflow:** [Myntmore Task1 Lead Follow-up](http://localhost:5678/workflow/RPh6nEfzP2mq7GFj) (`RPh6nEfzP2mq7GFj`)  
-**Data Table:** `myntmore_task1_leads` (`V9yyFJaurPbn0HJD`) — upsert on `idempotency_key`
+**Engine:** `workflows/n8n-code/process-leads.js` (service_rubric_v1 + draft JSON artifacts)
 
 ## Ownership
 
-- Cursor owns Task 1 **and** the future Make.com Task 2→1 bridge (deferred).
-- n8n orchestrates the end-to-end Task 1 flow.
+- Cursor owns Task 1 and the Make.com Task 2→1 bridge.
+- n8n orchestrates the end-to-end Task 1 CSV flow.
 - Supporting TypeScript in `automation/src/` mirrors the same rules for local CLI/tests.
 
-## Flow
+## Flow (CSV dry-run)
 
 1. **CSV Dry-Run Trigger** (manual)
-2. **Import Clean Score Route Draft** — Code node embeds 20 CSV rows + deterministic clean/score/route + validated template email drafts + Zoho draft-only plan
-3. **Route Hot Warm NotFit** — Switch with unexpected-tier fallback
-4. Branch markers (Hot alert / Warm / Not a fit / Unexpected)
-5. **Combine Routed Leads** (append, 4 inputs)
-6. **Upsert Lead By Idempotency Key** — Data Table upsert; retry on fail
-7. **Build Run Summary** — imported/processed/excluded/failed/completed + overlays
+2. **Import Clean Score Route Draft** — clean → qualify (7 services) → score → route → Hot/Warm `draft_artifact` JSON → Zoho draft-only plan
+3. **Build Run Summary** — imported / processed / excluded / Hot / Warm / Not-fit counts
 
-## Safety / failure handling
+Hook Grader webhook path (Make → n8n) remains separate and must stay intact.
 
-- Zoho: draft-only dry-run (`zoho_status=dry_run_queued|skipped|blocked`). No send path.
-- Gemini in n8n: **not credentialed** → recoverable `GEMINI_DEFERRED_IN_N8N` + template fallback (CTA `myntmore.com/founder-meeting`, &lt;120 words).
-- Engine Code node: `onError=continueErrorOutput` + retry → **Log Engine Failure** → merge → summary (`disposition=failed`).
-- Data Table upsert: retryOnFail (3 tries) on `idempotency_key` match.
-- Prompt injection cannot force Hot (score capped; routed not_a_fit).
-- Make.com: **not configured**.
+## What to show in a Loom execution
 
-## Verified run summary (execution 3)
+Open a **success** execution (e.g. `28`) → node **Import Clean Score Route Draft**:
 
-`imported=20 processed=20 excluded=6 failed=0 completed=14 duplicate=1 drafted=14 fallbackDrafts=14 hot=12 warm=2 not_a_fit=6 primary_sum=20`
+1. Qualification result (`service`, `qualification_status`, `qualification_method`, reason)
+2. Hot / Warm / Not-fit routing (`routing_tier`)
+3. `draft_artifact` object for Hot and Warm only
+4. `validation_ok` / `validation_errors` on the artifact
+5. Persistence markers / upsert outcomes in summary
+6. Explicit `status: draft_only` and `send_attempted: false`
+7. Error details when draft generation fails (template fallback still produces an artifact)
 
-## Engine source of truth in repo
+Not-fit rows have **no** `draft_artifact`.
 
-- `workflows/n8n-code/process-leads.js` — embedded Code logic (20 leads)
-- `workflows/fixtures/leads.dry-run.json` — fixture export from root `leads.csv`
-- Local CLI parity: `npm run process:csv`
+## Safety
+
+- Zoho Email Drafts API: permission-blocked; qualification shown in Lead Description instead.
+- No `sendMail` path.
+- Retries upsert on stable `draft_id` / idempotency key.
+- Prompt injection cannot force Hot.
+
+## Verified run (execution 28 + CLI dry-run)
+
+| Metric | Count |
+|--------|-------|
+| Rows accounted | 20 |
+| Hot | 12 |
+| Warm | 2 |
+| Not-fit | 6 |
+| Draft artifacts | 14 |
+| Not-fit with draft | 0 |
+| Emails sent | 0 |
+
+Primary services (n8n exec 28): linkedin_outreach=5, icp_mapping=4, cold_email=2, personal_branding=6, ai_lead_generation=3.
 
 ## Retest
 
-Re-run manually in n8n, or MCP `test_workflow` with pinData on `CSV Dry-Run Trigger`: `[{"json":{}}]`.
+Re-run manually in n8n, or MCP `test_workflow` / `execute_workflow` on `RPh6nEfzP2mq7GFj`. Local CLI: `PIPELINE_MODE=dry_run npm run process:csv`.

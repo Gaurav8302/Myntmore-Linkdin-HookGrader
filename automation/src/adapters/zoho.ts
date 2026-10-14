@@ -1,8 +1,18 @@
-import { EmailDraftResult, ProcessedLead, RoutingTier, StageError } from "../types.js";
+import { SERVICE_DISPLAY } from "../qualify/catalog.js";
+import {
+  EmailDraftResult,
+  ProcessedLead,
+  QualificationResult,
+  RouteResult,
+  RoutingTier,
+  ScoreResult,
+  StageError,
+} from "../types.js";
 
 /**
- * Zoho CRM adapter — DRAFT ONLY.
+ * Zoho CRM adapter — DRAFT ONLY / qualification display.
  * There is intentionally no "send email" method in this module.
+ * Zoho Email_Drafts__s remains permission-blocked (Crm_Implied_Create_EmailDrafts).
  */
 export interface ZohoDraftRequest {
   leadId: string;
@@ -12,10 +22,11 @@ export interface ZohoDraftRequest {
   tier: RoutingTier;
   draft: EmailDraftResult | null;
   sendMode: "draft";
+  qualification?: QualificationResult;
+  draftArtifactId?: string | null;
 }
 
 export interface ZohoClient {
-  /** Injected fetch for tests / live draft creation. */
   fetchImpl?: typeof fetch;
   apiDomain: string;
   accessToken: string;
@@ -29,6 +40,34 @@ export interface ZohoCreateDraftInput {
   subject: string;
   body: string;
   idempotencyKey: string;
+  mode?: "qualification_description" | "note_placeholder";
+}
+
+export function buildZohoQualificationSummary(args: {
+  qualification: QualificationResult;
+  score: ScoreResult | null;
+  route: RouteResult;
+  draftArtifactId: string | null;
+}): string {
+  const q = args.qualification;
+  const primary = q.primary ? SERVICE_DISPLAY[q.primary] : "none";
+  const secondary = q.secondary ? SERVICE_DISPLAY[q.secondary] : "none";
+  return [
+    "[MYNTMORE QUALIFICATION — DO NOT SEND]",
+    `Primary service: ${primary}`,
+    `Secondary service: ${secondary}`,
+    `Score: ${args.score?.score ?? "n/a"}/10 — ${args.score?.scoreReason ?? "n/a"}`,
+    `Temperature: ${args.route.tier}`,
+    `Qualification method: ${q.method}`,
+    `Qualification status: ${q.status}`,
+    `Draft artifact: ${args.draftArtifactId ?? "none"}`,
+    `Draft status: ${args.draftArtifactId ? "draft_only JSON artifact (not Zoho composer)" : "no draft"}`,
+    q.exclusionReason ? `Exclusion/review: ${q.exclusionReason}` : null,
+    `Reason: ${q.reason}`,
+    "send_attempted: false",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function planZohoDraft(req: ZohoDraftRequest): ProcessedLead["zoho"] {
@@ -47,7 +86,8 @@ export function planZohoDraft(req: ZohoDraftRequest): ProcessedLead["zoho"] {
       mode: "draft_only",
       wouldCreateDraft: false,
       status: "skipped",
-      detail: "Not a fit — no Zoho email draft",
+      detail:
+        "Not a fit — no email draft. Qualification may still be written to Lead Description.",
     };
   }
 
@@ -56,7 +96,7 @@ export function planZohoDraft(req: ZohoDraftRequest): ProcessedLead["zoho"] {
       mode: "draft_only",
       wouldCreateDraft: false,
       status: "blocked",
-      detail: "Cannot create Zoho draft without email",
+      detail: "Cannot attach qualification without email",
     };
   }
 
@@ -65,7 +105,7 @@ export function planZohoDraft(req: ZohoDraftRequest): ProcessedLead["zoho"] {
       mode: "draft_only",
       wouldCreateDraft: false,
       status: "blocked",
-      detail: "Email draft blocked or missing — Zoho draft not queued",
+      detail: "Email draft blocked or missing — JSON artifact not queued",
     };
   }
 
@@ -73,15 +113,14 @@ export function planZohoDraft(req: ZohoDraftRequest): ProcessedLead["zoho"] {
     mode: "draft_only",
     wouldCreateDraft: true,
     status: "dry_run_queued",
-    detail:
-      "Dry-run: would create Zoho CRM email/note draft only (never auto-send). Credentials UNVERIFIED.",
+    detail: req.draftArtifactId
+      ? `Draft JSON artifact ${req.draftArtifactId} (draft_only). Zoho composer API permission-blocked; Lead Description holds qualification summary.`
+      : "Dry-run: JSON draft artifact + Zoho Lead Description qualification (never send).",
   };
 }
 
 /**
- * Live draft creation — still draft-only. Uses Notes API shape as a placeholder.
- * Idempotency: callers must upsert CRM notes keyed by idempotencyKey externally.
- * UNVERIFIED until Zoho credentials are provided and tested.
+ * Writes a qualification Note / Description payload — never sendMail.
  */
 export async function createZohoDraft(
   client: ZohoClient,
@@ -99,8 +138,8 @@ export async function createZohoDraft(
       body: JSON.stringify({
         data: [
           {
-            Note_Title: `[DRAFT ONLY] ${input.subject}`,
-            Note_Content: `${input.body}\n\n[idempotency_key=${input.idempotencyKey}]`,
+            Note_Title: `[DRAFT ONLY / QUAL] ${input.subject}`,
+            Note_Content: `${input.body}\n\n[idempotency_key=${input.idempotencyKey}][mode=${input.mode ?? "note_placeholder"}][send_attempted=false]`,
           },
         ],
       }),
@@ -113,13 +152,13 @@ export async function createZohoDraft(
           mode: "draft_only",
           wouldCreateDraft: true,
           status: "failed",
-          detail: `Zoho draft API error (${res.status}): ${body.slice(0, 300)}`,
+          detail: `Zoho note API error (${res.status}): ${body.slice(0, 300)}`,
         },
         errors: [
           {
             stage: "zoho",
             code: "ZOHO_DRAFT_FAILED",
-            message: `Zoho draft failed with status ${res.status}`,
+            message: `Zoho note failed with status ${res.status}`,
             recoverable: false,
           },
         ],
@@ -131,7 +170,8 @@ export async function createZohoDraft(
         mode: "draft_only",
         wouldCreateDraft: true,
         status: "created",
-        detail: "Zoho draft/note created (send not invoked)",
+        detail:
+          "Zoho Note with qualification/draft text created (send not invoked; not Email Drafts composer)",
       },
       errors: [],
     };
@@ -142,7 +182,7 @@ export async function createZohoDraft(
         mode: "draft_only",
         wouldCreateDraft: true,
         status: "failed",
-        detail: `Zoho draft request error: ${message}`,
+        detail: `Zoho request error: ${message}`,
       },
       errors: [
         {

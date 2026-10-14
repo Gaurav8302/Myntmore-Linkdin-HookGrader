@@ -1,20 +1,26 @@
 {
   "name": "Myntmore Task1 Lead Follow-up (scaffold)",
   "meta": {
-    "description": "Scaffold only — runs local Node pipeline. Make.com Task2 bridge is separate and deferred.",
+    "description": "Scaffold only \u2014 runs local Node pipeline. Make.com Task2 bridge is separate and deferred.",
     "template": true
   },
   "nodes": [
     {
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "parameters": {}
     },
     {
       "name": "Run CSV Pipeline",
       "type": "n8n-nodes-base.executeCommand",
-      "position": [280, 0],
+      "position": [
+        280,
+        0
+      ],
       "parameters": {
         "command": "npm run process:csv",
         "notes": "Working directory must be automation/. Requires Node 20+."
@@ -23,16 +29,22 @@
     {
       "name": "Load Result JSON",
       "type": "n8n-nodes-base.readBinaryFile",
-      "position": [560, 0],
+      "position": [
+        560,
+        0
+      ],
       "parameters": {
         "filePath": "output/pipeline-result.json",
-        "notes": "Placeholder — adapt to n8n file node available on instance."
+        "notes": "Placeholder \u2014 adapt to n8n file node available on instance."
       }
     },
     {
       "name": "Hot Alert?",
       "type": "n8n-nodes-base.if",
-      "position": [840, 0],
+      "position": [
+        840,
+        0
+      ],
       "parameters": {
         "notes": "Filter leads where route.tier == hot && alertRequired == true. Notify human only."
       }
@@ -40,20 +52,65 @@
     {
       "name": "Zoho Draft Only",
       "type": "n8n-nodes-base.noOp",
-      "position": [1120, 100],
+      "position": [
+        1120,
+        100
+      ],
       "parameters": {
         "notes": "Replace with Zoho CRM draft/create-note. NEVER use send-email operations."
       }
     }
   ],
   "connections": {
-    "Manual Trigger": { "main": [[{ "node": "Run CSV Pipeline", "type": "main", "index": 0 }]] },
-    "Run CSV Pipeline": { "main": [[{ "node": "Load Result JSON", "type": "main", "index": 0 }]] },
-    "Load Result JSON": { "main": [[{ "node": "Hot Alert?", "type": "main", "index": 0 }]] },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Run CSV Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run CSV Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Load Result JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Result JSON": {
+      "main": [
+        [
+          {
+            "node": "Hot Alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Hot Alert?": {
       "main": [
-        [{ "node": "Zoho Draft Only", "type": "main", "index": 0 }],
-        [{ "node": "Zoho Draft Only", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Zoho Draft Only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Zoho Draft Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   }

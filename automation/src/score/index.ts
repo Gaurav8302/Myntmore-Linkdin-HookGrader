@@ -1,11 +1,15 @@
-import { CleanResult, ScoreResult } from "../types.js";
+import { CleanResult, MyntmoreService, ScoreResult } from "../types.js";
 import { applyScoreRules } from "./rules.js";
 
 /**
- * Score a cleaned lead. Deterministic only — Gemini never sets the numeric score.
+ * Score a cleaned lead. Deterministic only — NVIDIA never sets the numeric score.
+ * Service label comes from qualification primary when provided.
  */
-export function scoreLead(clean: CleanResult): ScoreResult {
-  const { score, service, breakdown } = applyScoreRules(clean);
+export function scoreLead(
+  clean: CleanResult,
+  serviceOverride?: MyntmoreService | null,
+): ScoreResult {
+  const { score, service, breakdown } = applyScoreRules(clean, serviceOverride);
 
   const topDrivers = breakdown
     .filter((b) => b.delta !== 0)

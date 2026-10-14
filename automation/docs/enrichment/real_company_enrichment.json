@@ -1,0 +1,88 @@
+{
+  "note": "Bonus enrichment only. Separate from the 20 fictional CSV sessions. No CRM leads created for real people. No outreach.",
+  "checked_at": "2026-10-14",
+  "companies": [
+    {
+      "company_name": "Postman",
+      "website": "https://www.postman.com",
+      "industry": "API platform / developer tools (B2B SaaS)",
+      "why_myntmore_fit": "Sells to technical and GTM buyers at software companies; founder and sales teams benefit from ICP clarity, outbound LinkedIn/email, and authority content.",
+      "employee_range": "Public LinkedIn company page reported ~3,500+ employees (sources vary; treat as approximate)",
+      "employee_sources": [
+        "https://www.linkedin.com/company/postman-platform"
+      ],
+      "funding_stage": "Series D (latest major disclosed round)",
+      "funding_amount": "$225M Series D (Aug 2021); ~$433M total disclosed across rounds",
+      "funding_sources": [
+        "https://blog.postman.com/postman-announces-series-d/",
+        "https://www.linkedin.com/company/postman-platform"
+      ],
+      "linkedin_activity": "Active LinkedIn company presence (postman-platform). Exact post-level engagement analytics not available without private access.",
+      "linkedin_activity_evidence": "Company page exists and is publicly indexed; follower and headcount figures reported by third-party LinkedIn scrapes.",
+      "linkedin_activity_date_checked": "2026-10-14",
+      "most_relevant_myntmore_service": "ICP Mapping & Lead Scoring",
+      "service_reason": "Large B2B SaaS with complex buying committees; prioritising in-market accounts and intent-ready lists matches Myntmore sales-intelligence work.",
+      "secondary_service": "Personal Branding",
+      "unavailable": [
+        "Private LinkedIn post analytics",
+        "Current round beyond Series D not verified for this file"
+      ],
+      "confidence": "medium-high for funding (company blog); medium for exact headcount (third-party LinkedIn aggregates disagree)"
+    },
+    {
+      "company_name": "Chargebee",
+      "website": "https://www.chargebee.com",
+      "industry": "Subscription billing / revenue infrastructure (B2B SaaS)",
+      "why_myntmore_fit": "Sells revenue infrastructure to SaaS and AI subscription businesses; GTM motion needs ICP, outbound, and executive visibility.",
+      "employee_range": "Reported 600+ employees around Series G (2021); Nov 2022 layoff of ~10% (~142 people) implies larger then — current exact headcount not independently verified here",
+      "employee_sources": [
+        "https://www.chargebee.com/blog/chargebee-funding-series-g/",
+        "https://techcrunch.com/2022/11/02/tiger-global-chargebee-layoffs/"
+      ],
+      "funding_stage": "Series H (disclosed 2022) after Series G unicorn round",
+      "funding_amount": "$125M Series G at $1.4B valuation (2021); $250M round co-led by Tiger Global and Sequoia (Feb 2022); ~$470M total cited in Insight Partners announcement",
+      "funding_sources": [
+        "https://www.chargebee.com/blog/chargebee-funding-series-g/",
+        "https://www.insightpartners.com/ideas/chargebee-raises-another-250m-to-meet-surging-demand-from-growing-subscription-and-saas-businesses/"
+      ],
+      "linkedin_activity": "Company and leadership LinkedIn profiles are public (CEO Krish Subramanian linked from company About page).",
+      "linkedin_activity_evidence": "https://www.chargebee.com/company/ links to leadership LinkedIn profiles",
+      "linkedin_activity_date_checked": "2026-10-14",
+      "most_relevant_myntmore_service": "LinkedIn Outreach & Automation",
+      "service_reason": "Subscription SaaS GTM typically needs repeatable LinkedIn outreach to finance/ops buyers alongside email; matches Myntmore LinkedIn Outreach & Automation deliverables.",
+      "secondary_service": "GTM Strategy",
+      "unavailable": [
+        "Current 2026 headcount from a primary Chargebee disclosure",
+        "Private LinkedIn engagement metrics"
+      ],
+      "confidence": "high for funding (company + Insight Partners posts); medium for current size"
+    },
+    {
+      "company_name": "Razorpay",
+      "website": "https://razorpay.com",
+      "industry": "Payments / fintech infrastructure (B2B)",
+      "why_myntmore_fit": "Sells payment and banking products to online businesses across India; sales teams need ICP scoring, outbound sequences, and founder-led brand in a crowded fintech market.",
+      "employee_range": "LinkedIn company size band 1,001–5,000; third-party LinkedIn aggregates report ~4,000 employees (approximate)",
+      "employee_sources": [
+        "https://www.linkedin.com/company/razorpay"
+      ],
+      "funding_stage": "Series F (Dec 2021) with later secondary; IPO preparations reported in press",
+      "funding_amount": "Series F $375M at $7.5B valuation (Dec 2021); secondary ~$75M (2022). Press reports later IPO targeting lower valuation bands — treat IPO figures as unconfirmed for this enrichment.",
+      "funding_sources": [
+        "https://www.linkedin.com/company/razorpay",
+        "https://economictimes.indiatimes.com/tech/startups/razorpay-plans-confidential-ipo-filing-soon-targets-600-700-million-raise-at-5-6-billion-valuation/articleshow/130377114.cms"
+      ],
+      "linkedin_activity": "Active public LinkedIn company page (razorpay) with large follower base reported by aggregators.",
+      "linkedin_activity_evidence": "https://www.linkedin.com/company/razorpay",
+      "linkedin_activity_date_checked": "2026-10-14",
+      "most_relevant_myntmore_service": "AI Lead Generation",
+      "service_reason": "High-volume B2B merchant acquisition benefits from AI research, enrichment, and ranked prospect lists rather than purely manual SDR research.",
+      "secondary_service": "Cold Email Infrastructure",
+      "unavailable": [
+        "Private LinkedIn analytics",
+        "Definitive post-Series-F primary round amounts beyond cited secondary/IPO press"
+      ],
+      "confidence": "medium-high for company identity and Series F; medium for exact current headcount"
+    }
+  ]
+}

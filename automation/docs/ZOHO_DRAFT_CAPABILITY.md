@@ -26,11 +26,14 @@
 
 Zoho CRM access available here cannot create an Email Drafts item. Missing org permission / API surface: `Crm_Implied_Create_EmailDrafts` (and likely Zoho Mail for CRM / mail draft scopes not granted to the connected OAuth client).
 
-## Safe interim (Task 1)
+## Assignment-compliant path (Task 1)
 
-1. Upsert Lead with score, tier, and draft body stored for review (`zoho_draft_status=dry_run_queued`).
-2. Hot/Warm: template draft text only — never send.
-3. Not fit: reason recorded, no email draft generated.
+Email drafts are generated and persisted as JSON artifacts. They are not sent, and Zoho's email composer draft API remains permission-blocked.
+
+1. Upsert Lead Description / Notes with a `[MYNTMORE QUALIFICATION — DO NOT SEND]` block (primary/secondary service, score, temperature, method, draft artifact id, exclusion/review reason).
+2. Hot/Warm: persist full draft JSON in Supabase `email_draft_artifacts` and surface as `draft_artifact` in n8n execution data (`status: draft_only`, `send_attempted: false`).
+3. Not fit: reason recorded, no draft artifact generated.
+4. Never call `sendMail` / `/actions/send_mail`.
 
 ## Human action required
 

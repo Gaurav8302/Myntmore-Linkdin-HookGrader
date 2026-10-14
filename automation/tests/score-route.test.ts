@@ -29,7 +29,8 @@ describe("scoring rules", () => {
     expect(mapService("profile_optimizer")).toBe("personal_branding");
     expect(mapService("roi_calculator")).toBe("linkedin_outreach");
     expect(mapService("battle_card_generator")).toBe("cold_email");
-    expect(mapService("icp_builder")).toBe("lead_generation");
+    expect(mapService("icp_builder")).toBe("icp_mapping");
+    expect(mapService("case_study_generator")).toBe("ai_lead_generation");
   });
 
   it("scores the same lead the same way twice", () => {

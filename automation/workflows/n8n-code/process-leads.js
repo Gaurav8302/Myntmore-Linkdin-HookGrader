@@ -7,10 +7,20 @@ const TOOL_TO_SERVICE = {
   dm_angle_generator: 'linkedin_outreach',
   roi_calculator: 'linkedin_outreach',
   battle_card_generator: 'cold_email',
-  case_study_generator: 'lead_generation',
-  icp_builder: 'lead_generation',
-  lead_magnet_ideas: 'lead_generation',
+  case_study_generator: 'ai_lead_generation',
+  icp_builder: 'icp_mapping',
+  lead_magnet_ideas: 'ai_lead_generation',
 };
+const SERVICE_DISPLAY = {
+  linkedin_outreach: 'LinkedIn Outreach & Automation',
+  cold_email: 'Cold Email Infrastructure',
+  icp_mapping: 'ICP Mapping & Lead Scoring',
+  ai_lead_generation: 'AI Lead Generation',
+  account_based_marketing: 'Account-Based Marketing',
+  personal_branding: 'Personal Branding',
+  gtm_strategy: 'GTM Strategy',
+};
+const QUAL_VERSION = 'service_rubric_v1';
 const TEST_TOKENS = new Set(['test','asdf','foo','bar','sample','dummy']);
 const CTA = 'myntmore.com/founder-meeting';
 
@@ -20,7 +30,81 @@ function normEmail(raw){
   if(!e) return null;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(e) ? e : null;
 }
-function mapService(t){ return TOOL_TO_SERVICE[t] || 'lead_generation'; }
+function mapService(t){ return TOOL_TO_SERVICE[t] || 'ai_lead_generation'; }
+
+function scoreServiceFits(clean){
+  const corpus = [clean.normalized.toolInput, clean.normalized.toolOutput, clean.normalized.sourceTool.replace(/_/g,' '), clean.normalized.designation].join('\n');
+  const defs = [
+    {id:'linkedin_outreach', weight:2, patterns:[/\bconnection requests?\b/i,/\blinkedin (outreach|dm|inbox|messages?|automation)\b/i,/\breply (rate|management)\b/i,/\bacceptance rate\b/i,/\bdm angles?\b/i]},
+    {id:'cold_email', weight:2, patterns:[/\bcold email\b/i,/\b(spf|dkim|dmarc)\b/i,/\b(spam|bounce|deliverability|inbox)\b/i,/\bbattle card\b/i]},
+    {id:'icp_mapping', weight:2, patterns:[/\bicp\b/i,/\bideal customer\b/i,/\blead scoring\b/i,/\bintent\b/i]},
+    {id:'ai_lead_generation', weight:2, patterns:[/\bai (agents?|lead|research)\b/i,/\bmanual research\b/i,/\benrich/i,/\blead magnet\b/i,/\bcase study\b/i]},
+    {id:'account_based_marketing', weight:2, patterns:[/\baccount-?based\b|\babm\b/i,/\bnamed accounts?\b/i,/\btarget accounts?\b/i,/\bbuying committee\b/i]},
+    {id:'personal_branding', weight:2, patterns:[/\bpersonal brand/i,/\bghostwrit/i,/\bfounder presence\b/i,/\bposting rhythm\b/i,/\bposts? (per month|a month)\b/i]},
+    {id:'gtm_strategy', weight:2, patterns:[/\bgtm\b|\bgo-?to-?market\b/i,/\bpositioning\b/i,/\bchannel mix\b/i]},
+  ];
+  const scores = defs.map(d=>{
+    let points=0; const matched=[];
+    for(const p of d.patterns){ if(p.test(corpus)){ points+=d.weight; matched.push(p.source.slice(0,40)); } }
+    return {service:d.id, points, matchedSignals:matched};
+  });
+  const prior = TOOL_TO_SERVICE[clean.normalized.sourceTool];
+  if(prior){ const e=scores.find(s=>s.service===prior); if(e){ e.points+=1; e.matchedSignals.push('tool_prior:'+clean.normalized.sourceTool); } }
+  const abm=scores.find(s=>s.service==='account_based_marketing');
+  if(abm && !/\b(named accounts?|target accounts?|buying committee|account-?based|\babm\b)/i.test(corpus)) abm.points=Math.min(abm.points,1);
+  return scores.sort((a,b)=>b.points-a.points);
+}
+
+function qualify(clean){
+  const hard = clean.flags.some(f=>['test_entry','non_buyer','prompt_injection','malformed'].includes(f));
+  if(hard){
+    return { primary: TOOL_TO_SERVICE[clean.normalized.sourceTool]||null, secondary:null, reason:'Excluded — '+clean.reasons.join('; '), method:'rules_only', status:'excluded', exclusionReason:clean.reasons.join('; '), version:QUAL_VERSION };
+  }
+  const fits = scoreServiceFits(clean);
+  const top=fits[0], second=fits[1];
+  if(!top || top.points<2){
+    const prior = TOOL_TO_SERVICE[clean.normalized.sourceTool]||null;
+    return { primary: prior, secondary:null, reason: prior ? ('Insufficient signals; tool prior '+SERVICE_DISPLAY[prior]) : 'Insufficient evidence', method:'rules_only', status:'needs_review', exclusionReason: prior?null:'insufficient_service_evidence', version:QUAL_VERSION };
+  }
+  let primary=top.service;
+  let secondary = (second && second.points>=2 && second.service!==primary) ? second.service : null;
+  let status='qualified';
+  if(second && second.points>=2 && top.points-second.points<=1) status='needs_review';
+  const evidence=(top.matchedSignals||[]).slice(0,3).join('; ')||'tool prior';
+  let reason='Primary '+SERVICE_DISPLAY[primary]+' from submitted signals ('+evidence+').'+(secondary?(' Secondary: '+SERVICE_DISPLAY[secondary]+'.'):'');
+  if(clean.flags.includes('duplicate_contact')) reason+=' Duplicate contact session retained.';
+  return { primary, secondary, reason, method:'rules_only', status, exclusionReason:null, version:QUAL_VERSION };
+}
+
+function draftId(idem, tier){
+  // Stable-enough id for n8n demo without crypto module
+  let h=0; const s=idem+'|'+tier+'|draft_v1';
+  for(let i=0;i<s.length;i++) h=((h<<5)-h)+s.charCodeAt(i)|0;
+  return 'draft_'+Math.abs(h).toString(16)+'_'+tier;
+}
+
+function buildArtifact(raw, clean, qual, routed, emailDraft){
+  if(!emailDraft || emailDraft.blocked || (routed.tier!=='hot' && routed.tier!=='warm')) return null;
+  return {
+    draft_id: draftId(clean.idempotencyKey, routed.tier),
+    lead_id: raw.lead_id,
+    source: 'csv',
+    lead_temperature: routed.tier==='hot'?'Hot':'Warm',
+    service_fit_primary: qual.primary ? SERVICE_DISPLAY[qual.primary] : 'Unassigned',
+    service_fit_secondary: qual.secondary ? SERVICE_DISPLAY[qual.secondary] : null,
+    subject: emailDraft.subject,
+    recipient: clean.normalized.email || 'unknown@invalid.local',
+    body: emailDraft.body,
+    cta_url: 'https://myntmore.com/founder-meeting',
+    status: 'draft_only',
+    send_attempted: false,
+    qualification_reason: qual.reason,
+    created_at: new Date().toISOString(),
+    validation_ok: !emailDraft.blocked,
+    validation_errors: emailDraft.validationErrors||[],
+    draft_source: emailDraft.source,
+  };
+}
 
 function classify(raw, byEmail){
   const n = {
@@ -63,8 +147,8 @@ function classify(raw, byEmail){
   };
 }
 
-function score(clean){
-  const service = mapService(clean.normalized.sourceTool);
+function score(clean, serviceOverride){
+  const service = serviceOverride || mapService(clean.normalized.sourceTool);
   let s = 5; const breakdown=[];
   const bump=(rule,d,note)=>{ breakdown.push({rule,delta:d,note}); s+=d; };
   bump('base',0,'service='+service);
@@ -128,19 +212,34 @@ for (const raw of LEADS) {
   const errors = [];
   try {
     const clean = classify(raw, byEmail);
-    const scored = score(clean);
+    const qual = qualify(clean);
+    const scored = score(clean, qual.primary);
     const routed = route(clean, scored);
     let emailDraft = null;
     let draftStatus = 'skipped';
+    let draftArtifact = null;
     if (routed.draftEmailRequired && clean.eligibleForEmail) {
       emailDraft = templateDraft(clean, scored.service, routed.tier);
       draftStatus = emailDraft.blocked ? 'blocked' : 'template_fallback';
-      errors.push({ stage:'email', code:'GEMINI_DEFERRED_IN_N8N', message:'No Gemini credential in n8n; used validated template fallback', recoverable:true });
+      draftArtifact = buildArtifact(raw, clean, qual, routed, emailDraft);
+      errors.push({ stage:'email', code:'NVIDIA_DEFERRED_IN_N8N', message:'n8n CSV path uses validated template fallback; JSON draft artifact still emitted (never send)', recoverable:true });
     }
-    const zoho = (!routed.draftEmailRequired) ? { mode:'draft_only', wouldCreateDraft:false, status:'skipped', detail:'Not a fit' }
+    const zoho = (!routed.draftEmailRequired) ? { mode:'draft_only', wouldCreateDraft:false, status:'skipped', detail:'Not a fit — no email draft. Qualification summary only.' }
       : (!emailDraft || emailDraft.blocked) ? { mode:'draft_only', wouldCreateDraft:false, status:'blocked', detail:'Draft blocked' }
-      : { mode:'draft_only', wouldCreateDraft:true, status:'dry_run_queued', detail:'Dry-run Zoho draft only (never send). Credentials UNVERIFIED.' };
+      : { mode:'draft_only', wouldCreateDraft:true, status:'dry_run_queued', detail:'JSON draft artifact draft_only; Zoho composer API permission-blocked; never send.' };
     const disp = disposition(clean.flags, routed.tier, errors);
+    const zoho_qualification = [
+      '[MYNTMORE QUALIFICATION — DO NOT SEND]',
+      'Primary: '+(qual.primary?SERVICE_DISPLAY[qual.primary]:'none'),
+      'Secondary: '+(qual.secondary?SERVICE_DISPLAY[qual.secondary]:'none'),
+      'Score: '+scored.score+'/10',
+      'Temperature: '+routed.tier,
+      'Method: '+qual.method,
+      'Status: '+qual.status,
+      'Draft artifact: '+(draftArtifact?draftArtifact.draft_id:'none'),
+      'send_attempted: false',
+      qual.reason,
+    ].join('\n');
     results.push({
       json: {
         lead_id: raw.lead_id,
@@ -151,19 +250,32 @@ for (const raw of LEADS) {
         alert_required: routed.alertRequired,
         routing_reason: routed.reason,
         service: scored.service,
+        service_fit_primary: qual.primary ? SERVICE_DISPLAY[qual.primary] : null,
+        service_fit_secondary: qual.secondary ? SERVICE_DISPLAY[qual.secondary] : null,
+        service_fit_reason: qual.reason,
+        qualification_method: qual.method,
+        qualification_status: qual.status,
+        qualification_version: qual.version,
+        exclusion_reason: qual.exclusionReason,
         score: scored.score,
         score_reason: scored.scoreReason,
+        lead_temperature: routed.tier,
         clean_flags: clean.flags.join(','),
         clean_reasons: clean.reasons.join(' | '),
         draft_status: draftStatus,
         email_subject: emailDraft ? emailDraft.subject : '',
         email_draft: emailDraft ? emailDraft.body : '',
         email_word_count: emailDraft ? emailDraft.wordCount : 0,
+        draft_artifact: draftArtifact,
+        draft_artifact_id: draftArtifact ? draftArtifact.draft_id : null,
+        draft_validation_ok: draftArtifact ? draftArtifact.validation_ok : null,
+        send_attempted: false,
         zoho_status: zoho.status,
         zoho_detail: zoho.detail,
+        zoho_qualification_summary: zoho_qualification,
         errors: JSON.stringify(errors),
         error_count: errors.length,
-        persistence_target: 'n8n_data_table',
+        persistence_target: 'supabase_leads_and_email_draft_artifacts',
       }
     });
   } catch (e) {

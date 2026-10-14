@@ -45,6 +45,16 @@ function sampleLead(overrides: Partial<ProcessedLead> = {}): ProcessedLead {
       eligibleForScoring: true,
       eligibleForEmail: true,
     },
+    qualification: {
+      primary: "linkedin_outreach",
+      secondary: null,
+      reason: "Primary LinkedIn Outreach & Automation from submitted signals.",
+      method: "rules_only",
+      status: "qualified",
+      exclusionReason: null,
+      version: "service_rubric_v1",
+      ruleHits: [],
+    },
     score: {
       score: 9,
       service: "linkedin_outreach",
@@ -67,6 +77,25 @@ function sampleLead(overrides: Partial<ProcessedLead> = {}): ProcessedLead {
       blocked: false,
       isFallback: true,
       fallbackReason: "test",
+    },
+    draftArtifact: {
+      draft_id: "draft_test",
+      lead_id: "L01",
+      source: "csv",
+      lead_temperature: "Hot",
+      service_fit_primary: "LinkedIn Outreach & Automation",
+      service_fit_secondary: null,
+      subject: "Hi",
+      recipient: "arjun@ledgerloop.example",
+      body: "Hello myntmore.com/founder-meeting",
+      cta_url: "https://myntmore.com/founder-meeting",
+      status: "draft_only",
+      send_attempted: false,
+      qualification_reason: "test",
+      created_at: "2026-10-14T00:00:00.000Z",
+      validation_ok: true,
+      validation_errors: [],
+      draft_source: "template_fallback",
     },
     zoho: {
       mode: "draft_only",
@@ -201,7 +230,8 @@ describe("Zoho adapter (draft-only)", () => {
     expect(result.mode).toBe("draft_only");
     expect(errors).toEqual([]);
     const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-    expect(String(init.body)).toContain("[DRAFT ONLY]");
+    expect(String(init.body)).toMatch(/\[DRAFT ONLY/);
+    expect(String(init.body)).toContain("send_attempted=false");
   });
 });
 

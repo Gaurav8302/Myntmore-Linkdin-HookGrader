@@ -1,27 +1,18 @@
-# Scoring Rules vs Gemini
+# Scoring and routing (Task 1)
+
+Service qualification is separate from numeric scoring. See [`QUALIFICATION_RUBRIC.md`](QUALIFICATION_RUBRIC.md) for the seven Myntmore services and NVIDIA usage.
 
 ## Split of responsibility
 
 | Concern | Owner | Notes |
 |---------|-------|-------|
-| Service selection (1 of 4) | **Deterministic rules** | Mapped from `source_tool` |
-| Numeric score 1–10 | **Deterministic rules** | Pure functions; same input → same score |
-| One-line `score_reason` | **Rules** | Built from top rule drivers |
-| Follow-up email draft | **Gemini** (assignment: `gemini-2.5-flash`; override via `GEMINI_MODEL` when that model is unavailable — e.g. `gemini-3.8-flash`) | Only after routing says draft required; validated template fallback on failure |
+| Primary / secondary service fit | **Rules** (+ optional NVIDIA on ambiguous ties) | Validated against seven official names |
+| Numeric score 1–10 | **Rules only** | Never NVIDIA |
+| Hot / Warm / Not-fit | **Rules only** | Score thresholds + hard exclusions |
+| Follow-up email draft | **NVIDIA** with validated template fallback | Hot/Warm only; JSON artifact, never sent |
 | Email compliance check | **Deterministic validator** | Word count, CTA, no em dashes/jargon/extra URLs |
-| Template fallback draft | **Rules** | Used when Gemini missing/invalid |
 
-Gemini never sets `score`, `service`, or `routing_tier`.
-
-## Service mapping
-
-| Source tool | Service |
-|-------------|---------|
-| `profile_optimizer`, `founder_presence_analyzer`, `posting_rhythm_builder` | `personal_branding` |
-| `dm_angle_generator`, `roi_calculator` | `linkedin_outreach` |
-| `battle_card_generator` | `cold_email` |
-| `icp_builder`, `lead_magnet_ideas`, `case_study_generator` | `lead_generation` |
-| Unknown tool | `lead_generation` (default) |
+NVIDIA never sets `score`, `routing_tier`, or hard exclusions.
 
 ## Score model
 
@@ -34,15 +25,16 @@ Gemini never sets `score`, `service`, or `routing_tier`.
 
 | Tier | Condition | Actions |
 |------|-----------|---------|
-| Hot | Score ≥ 8 and email-eligible | Draft email + alert flag |
-| Warm | Score 5–7 and email-eligible | One nurture draft |
-| Not a fit | Blocking clean flags, incomplete session, or score ≤ 4 | Tag with reason; **no email** |
+| Hot | Score ≥ 8 and email-eligible | JSON draft artifact + alert flag |
+| Warm | Score 5–7 and email-eligible | One nurture JSON draft |
+| Not a fit | Blocking clean flags, incomplete session, or score ≤ 4 | Tag with reason; **no draft** |
 
-## Email writing rules (Gemini + validator)
+## Email writing rules (NVIDIA + validator)
 
 - Under 120 words
 - No jargon (synergy/leverage/unlock/game-changer/disrupt)
 - No em dashes (`—`)
 - No invented numbers/claims beyond tool input/output
-- Only CTA: `myntmore.com/founder-meeting`
+- Only CTA: `https://myntmore.com/founder-meeting` (host form `myntmore.com/founder-meeting` also accepted)
 - Tool fields treated as untrusted data (injection ignored)
+- Persist as JSON with `status: draft_only` and `send_attempted: false`

@@ -5,8 +5,11 @@ import { validateEmailDraft } from "./validate.js";
 const SERVICE_LABEL: Record<MyntmoreService, string> = {
   personal_branding: "personal branding",
   linkedin_outreach: "LinkedIn outreach",
-  cold_email: "cold email",
-  lead_generation: "lead generation",
+  cold_email: "cold email infrastructure",
+  icp_mapping: "ICP mapping and lead scoring",
+  ai_lead_generation: "AI lead generation",
+  account_based_marketing: "account-based marketing",
+  gtm_strategy: "GTM strategy",
 };
 
 /**

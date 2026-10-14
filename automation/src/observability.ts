@@ -59,6 +59,8 @@ export interface PipelineCounts {
   drafted: number;
   /** Overlay: drafts that used template fallback. */
   fallbackDrafts: number;
+  /** Overlay: qualification status needs_review. */
+  needsReview: number;
 }
 
 export function draftStatusFrom(
@@ -114,8 +116,10 @@ export function summarizeCounts(leads: ProcessedLead[]): PipelineCounts {
   let duplicate = 0;
   let drafted = 0;
   let fallbackDrafts = 0;
+  let needsReview = 0;
 
-  for (const obs of observations) {
+  for (let i = 0; i < observations.length; i += 1) {
+    const obs = observations[i];
     if (obs.disposition === "failed") failed += 1;
     else if (obs.disposition === "excluded") excluded += 1;
     else completed += 1; // processed + duplicate_retained
@@ -129,6 +133,7 @@ export function summarizeCounts(leads: ProcessedLead[]): PipelineCounts {
       drafted += 1;
     }
     if (obs.draftStatus === "template_fallback") fallbackDrafts += 1;
+    if (leads[i].qualification.status === "needs_review") needsReview += 1;
   }
 
   return {
@@ -140,5 +145,6 @@ export function summarizeCounts(leads: ProcessedLead[]): PipelineCounts {
     duplicate,
     drafted,
     fallbackDrafts,
+    needsReview,
   };
 }

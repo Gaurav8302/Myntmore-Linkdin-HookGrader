@@ -35,12 +35,15 @@ export async function runCsvPipeline(config: AppConfig): Promise<PipelineSummary
 
   const byTier: Record<RoutingTier, number> = { hot: 0, warm: 0, not_a_fit: 0 };
   const byFlag: Record<string, number> = {};
+  const byPrimaryService: Record<string, number> = {};
 
   for (const lead of leads) {
     byTier[lead.route.tier] += 1;
     for (const flag of lead.clean.flags) {
       byFlag[flag] = (byFlag[flag] ?? 0) + 1;
     }
+    const svc = lead.qualification.primary ?? "unassigned";
+    byPrimaryService[svc] = (byPrimaryService[svc] ?? 0) + 1;
   }
 
   for (const warning of parseWarnings) {
@@ -69,6 +72,7 @@ export async function runCsvPipeline(config: AppConfig): Promise<PipelineSummary
     accountedRows: leads.length,
     byTier,
     byFlag,
+    byPrimaryService,
     counts,
     observations,
     leads,
@@ -81,8 +85,11 @@ export function summarizeForCli(summary: PipelineSummary): string {
     `Rows imported: ${c.imported}`,
     `Rows processed (accounted): ${c.processed}`,
     `Primary: completed=${c.completed} excluded=${c.excluded} failed=${c.failed} (sum=${c.completed + c.excluded + c.failed})`,
-    `Overlays: duplicate=${c.duplicate} drafted=${c.drafted} fallbackDrafts=${c.fallbackDrafts}`,
+    `Overlays: duplicate=${c.duplicate} drafted=${c.drafted} fallbackDrafts=${c.fallbackDrafts} needsReview=${c.needsReview}`,
     `Tiers: Hot=${summary.byTier.hot} Warm=${summary.byTier.warm} Not a fit=${summary.byTier.not_a_fit}`,
+    `Primary services: ${Object.entries(summary.byPrimaryService)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(" ")}`,
     "",
     "Per-lead:",
   ];
@@ -95,9 +102,11 @@ export function summarizeForCli(summary: PipelineSummary): string {
         obs.disposition,
         lead.route.tier,
         `score=${lead.score?.score ?? "-"}`,
-        `service=${lead.score?.service ?? "-"}`,
+        `service=${lead.qualification.primary ?? lead.score?.service ?? "-"}`,
+        `qual=${lead.qualification.status}/${lead.qualification.method}`,
         `flags=${lead.clean.flags.join("+")}`,
         `draft=${obs.draftStatus}`,
+        `artifact=${lead.draftArtifact?.draft_id ?? "none"}`,
         `zoho=${lead.zoho.status}`,
         `errors=${lead.errors.length}`,
       ].join(" | "),

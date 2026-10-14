@@ -1,9 +1,21 @@
-import { planZohoDraft, createZohoDraft, ZohoClient } from "../adapters/zoho.js";
-import { persistProcessedLead, SupabaseConfig } from "../adapters/supabase.js";
+import { planZohoDraft, createZohoDraft, ZohoClient, buildZohoQualificationSummary } from "../adapters/zoho.js";
+import {
+  persistProcessedLead,
+  persistDraftArtifact,
+  SupabaseConfig,
+} from "../adapters/supabase.js";
+import { buildDraftArtifact } from "../email/artifact.js";
 import { draftFollowUpEmail, DraftEmailOptions } from "../email/gemini.js";
+import { qualifyLead } from "../qualify/index.js";
 import { routeLead } from "../route/index.js";
 import { scoreLead } from "../score/index.js";
-import { CleanResult, ProcessedLead, RawLead, StageError } from "../types.js";
+import {
+  CleanResult,
+  ProcessedLead,
+  QualificationResult,
+  RawLead,
+  StageError,
+} from "../types.js";
 
 export interface ProcessOptions {
   email: DraftEmailOptions;
@@ -21,19 +33,37 @@ export async function processLead(
   const errors: StageError[] = [];
 
   try {
-    const score = clean.eligibleForScoring ? scoreLead(clean) : null;
+    const qualification = await qualifyLead(clean);
+    const score = clean.eligibleForScoring
+      ? scoreLead(clean, qualification.primary)
+      : null;
     const route = routeLead(clean, score);
 
     let emailDraft = null;
+    let draftArtifact = null;
     if (route.draftEmailRequired && clean.eligibleForEmail && score) {
+      const serviceForDraft =
+        qualification.primary ?? score.service;
       const outcome = await draftFollowUpEmail(
         clean,
-        score.service,
+        serviceForDraft,
         route.tier,
         options.email,
       );
       emailDraft = outcome.draft;
       errors.push(...outcome.errors);
+
+      if (emailDraft && !emailDraft.blocked && (route.tier === "hot" || route.tier === "warm")) {
+        draftArtifact = buildDraftArtifact({
+          leadId: raw.lead_id,
+          idempotencyKey: clean.idempotencyKey,
+          source: options.source ?? "csv",
+          tier: route.tier,
+          qualification,
+          draft: emailDraft,
+          recipient: clean.normalized.email || "unknown@invalid.local",
+        });
+      }
     }
 
     let zoho = planZohoDraft({
@@ -44,17 +74,27 @@ export async function processLead(
       tier: route.tier,
       draft: emailDraft,
       sendMode: options.zohoSendMode,
+      qualification,
+      draftArtifactId: draftArtifact?.draft_id ?? null,
     });
 
-    if (options.zoho && zoho.wouldCreateDraft && options.supabase.mode === "live") {
+    // Prefer Lead Description qualification summary over fake email-composer drafts.
+    if (options.zoho && options.supabase.mode === "live" && clean.normalized.email) {
+      const summary = buildZohoQualificationSummary({
+        qualification,
+        score,
+        route,
+        draftArtifactId: draftArtifact?.draft_id ?? null,
+      });
       const created = await createZohoDraft(options.zoho, {
         leadId: raw.lead_id,
-        email: clean.normalized.email!,
+        email: clean.normalized.email,
         fullName: clean.normalized.fullName,
         company: clean.normalized.company,
-        subject: emailDraft!.subject,
-        body: emailDraft!.body,
+        subject: `[QUAL] ${raw.lead_id} ${route.tier}`,
+        body: summary,
         idempotencyKey: clean.idempotencyKey,
+        mode: "qualification_description",
       });
       zoho = created.result;
       errors.push(...created.errors);
@@ -66,9 +106,11 @@ export async function processLead(
       source: options.source ?? "csv",
       raw,
       clean,
+      qualification,
       score,
       route,
       emailDraft,
+      draftArtifact,
       zoho,
       persistence: { status: "pending", detail: "Not yet persisted" },
       errors,
@@ -84,15 +126,38 @@ export async function processLead(
       });
     }
 
+    if (draftArtifact && options.supabase.mode === "live") {
+      const art = await persistDraftArtifact(draftArtifact, options.supabase);
+      if (!art.ok) {
+        lead.errors.push({
+          stage: "persist",
+          code: "DRAFT_ARTIFACT_PERSIST_FAILED",
+          message: art.detail,
+          recoverable: true,
+        });
+      }
+    }
+
     return lead;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const emptyQual: QualificationResult = {
+      primary: null,
+      secondary: null,
+      reason: `Pipeline failure — ${message}`,
+      method: "rules_only",
+      status: "excluded",
+      exclusionReason: message,
+      version: "service_rubric_v1",
+      ruleHits: [],
+    };
     return {
       leadId: raw.lead_id,
       idempotencyKey: clean.idempotencyKey,
       source: options.source ?? "csv",
       raw,
       clean,
+      qualification: emptyQual,
       score: null,
       route: {
         tier: "not_a_fit",
@@ -101,6 +166,7 @@ export async function processLead(
         reason: `Pipeline failure — ${message}`,
       },
       emailDraft: null,
+      draftArtifact: null,
       zoho: {
         mode: "draft_only",
         wouldCreateDraft: false,

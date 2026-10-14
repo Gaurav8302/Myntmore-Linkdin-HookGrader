@@ -30,3 +30,12 @@ Earlier failures: broken `SetVariables` (removed); localtunnel Bad Gateway when 
 ## Durability blocker
 
 n8n is local + **localtunnel**. Tunnel hostname changes on restart; update Make HTTP URL (or replace with stable Cloudflare Tunnel / hosted n8n) before treating the bridge as production-stable.
+
+## Re-check 2026-10-14 (final UI iteration)
+
+| Check | Result |
+|-------|--------|
+| n8n workflow `RPh6nEfzP2mq7GFj` | Active; webhook `POST /webhook/myntmore-hook-grader` returns 200 locally |
+| Make module HTTP URL | `https://small-signs-go.loca.lt/webhook/myntmore-hook-grader` |
+| Tunnel reachability | **503 Tunnel Unavailable** — Make cannot reach n8n until a new public tunnel is started and the Make URL is updated |
+| Controlled Make→n8n E2E this pass | **Not run** (blocked by dead tunnel) |

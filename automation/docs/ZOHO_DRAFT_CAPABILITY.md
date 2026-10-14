@@ -1,4 +1,4 @@
-# Zoho draft-only capability (verified 2026-10-14)
+# Zoho draft-only capability (re-checked 2026-10-14 final)
 
 ## Live-tested
 
@@ -6,9 +6,9 @@
 - **Lead create works**: fictional Lead created via `ZohoCRM_createRecords` on module `Leads`.
   - Record id: `1445645000000547001`
   - Email: `fictional.myntmore.test@example.com` (do not contact)
-- **Lead Description updated** (again) with labeled `[DRAFT ONLY — DO NOT SEND]` body — CRM-visible draft text for Loom; **not** an email-composer draft.
+- **Lead Description updated** with labeled `[DRAFT ONLY — DO NOT SEND]` body — CRM-visible draft text for Loom; **not** an email-composer draft.
 - n8n Zoho CRM node supports Lead create/upsert/get — **same class of API** as MCP (records), not email composer drafts.
-- **`user-Email-Followup` / `ZohoCRM_sendMail`**: schema is **send-mail only** (from/to/content). **No draft flag.** Auto-review correctly blocks send → **never called.**
+- **Re-inspection of `user-Email-Followup`**: still only exposes `ZohoCRM_sendMail` (send-mail API). Schema has from/to/content/template fields and **no draft / save-as-draft flag**. **Never called.** No new draft-create tool appeared in the namespace.
 
 ## Blocker (genuine email draft)
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -8,8 +8,11 @@ import { z } from 'zod'
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   designation: z.string().max(100).optional(),
-  email: z.string().email('Invalid email address'),
-  hook: z.string().min(2, 'Hook must be at least 2 characters').max(500, 'Hook must be 500 characters or less'),
+  email: z.string().email('Enter a valid email address'),
+  hook: z
+    .string()
+    .min(2, 'Hook must be at least 2 characters')
+    .max(500, 'Hook must be 500 characters or less'),
 })
 
 type FormData = z.infer<typeof formSchema>
@@ -23,11 +26,14 @@ interface HookGraderFormProps {
 export function HookGraderForm({ onSubmit, isLoading, error }: HookGraderFormProps) {
   const [submitError, setSubmitError] = useState<string | undefined>(error)
 
+  useEffect(() => {
+    setSubmitError(error)
+  }, [error])
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,123 +56,125 @@ export function HookGraderForm({ onSubmit, isLoading, error }: HookGraderFormPro
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6" noValidate>
       {submitError && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg animate-fade-in" role="alert">
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-myntmore-danger"
+          role="alert"
+        >
           {submitError}
         </div>
       )}
 
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-myntmore-primary dark:text-myntmore-light mb-1">
-            Full Name <span className="text-red-500">*</span>
-          </label>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field
+          id="name"
+          label="Full name"
+          required
+          error={errors.name?.message}
+          disabled={isLoading}
+        >
           <input
             {...register('name')}
             id="name"
             type="text"
-            placeholder="John Doe"
-            className={`w-full px-4 py-3 rounded-lg border ${
-              errors.name
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:border-myntmore-gold focus:ring-myntmore-gold'
-            } bg-white dark:bg-myntmore-secondary text-myntmore-primary dark:text-myntmore-light focus:ring-2 focus:ring-offset-0 transition-colors`}
+            placeholder="Sarah Chen"
             disabled={isLoading}
             aria-invalid={errors.name ? 'true' : 'false'}
-            aria-describedby={errors.name ? 'name-error' : undefined}
+            className={`mm-input ${errors.name ? 'mm-input-error' : ''}`}
           />
-          {errors.name && (
-            <p id="name-error" className="mt-1 text-sm text-red-500" role="alert">{errors.name.message}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label htmlFor="designation" className="block text-sm font-medium text-myntmore-primary dark:text-myntmore-light mb-1">
-            Designation (Optional)
-          </label>
+        <Field
+          id="designation"
+          label="Designation"
+          error={errors.designation?.message}
+          disabled={isLoading}
+        >
           <input
             {...register('designation')}
             id="designation"
             type="text"
-            placeholder="Founder & CEO"
-            className={`w-full px-4 py-3 rounded-lg border ${
-              errors.designation
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:border-myntmore-gold focus:ring-myntmore-gold'
-            } bg-white dark:bg-myntmore-secondary text-myntmore-primary dark:text-myntmore-light focus:ring-2 focus:ring-offset-0 transition-colors`}
+            placeholder="Head of Growth"
             disabled={isLoading}
+            className={`mm-input ${errors.designation ? 'mm-input-error' : ''}`}
           />
-          {errors.designation && (
-            <p className="mt-1 text-sm text-red-500" role="alert">{errors.designation.message}</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-myntmore-primary dark:text-myntmore-light mb-1">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            {...register('email')}
-            id="email"
-            type="email"
-            placeholder="john@example.com"
-            className={`w-full px-4 py-3 rounded-lg border ${
-              errors.email
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:border-myntmore-gold focus:ring-myntmore-gold'
-            } bg-white dark:bg-myntmore-secondary text-myntmore-primary dark:text-myntmore-light focus:ring-2 focus:ring-offset-0 transition-colors`}
-            disabled={isLoading}
-            aria-invalid={errors.email ? 'true' : 'false'}
-            aria-describedby={errors.email ? 'email-error' : undefined}
-          />
-          {errors.email && (
-            <p id="email-error" className="mt-1 text-sm text-red-500" role="alert">{errors.email.message}</p>
-          )}
-        </div>
+        </Field>
       </div>
 
-      <div>
-        <label htmlFor="hook" className="block text-sm font-medium text-myntmore-primary dark:text-myntmore-light mb-1">
-          LinkedIn Hook (First Two Lines) <span className="text-red-500">*</span>
-        </label>
+      <Field id="email" label="Work email" required error={errors.email?.message} disabled={isLoading}>
+        <input
+          {...register('email')}
+          id="email"
+          type="email"
+          placeholder="sarah@company.com"
+          disabled={isLoading}
+          aria-invalid={errors.email ? 'true' : 'false'}
+          className={`mm-input ${errors.email ? 'mm-input-error' : ''}`}
+        />
+      </Field>
+
+      <Field
+        id="hook"
+        label="LinkedIn hook (first two lines)"
+        required
+        error={errors.hook?.message}
+        hint="Paste only the opening lines readers see before they decide to keep scrolling."
+        disabled={isLoading}
+      >
         <textarea
           {...register('hook')}
           id="hook"
-          rows={4}
-          placeholder="Paste the first two lines of your LinkedIn post here..."
-          className={`w-full px-4 py-3 rounded-lg border ${
-            errors.hook
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:border-myntmore-gold focus:ring-myntmore-gold'
-            } bg-white dark:bg-myntmore-secondary text-myntmore-primary dark:text-myntmore-light focus:ring-2 focus:ring-offset-0 transition-colors resize-y min-h-[100px]`}
+          rows={5}
+          placeholder="I cut our sales cycle from 90 days to 21 days by rewriting the first LinkedIn message. Want the 3-line template?"
           disabled={isLoading}
           aria-invalid={errors.hook ? 'true' : 'false'}
-          aria-describedby={errors.hook ? 'hook-error' : 'hook-hint'}
+          className={`mm-input min-h-[140px] resize-y ${errors.hook ? 'mm-input-error' : ''}`}
         />
-        {errors.hook && (
-          <p id="hook-error" className="mt-1 text-sm text-red-500" role="alert">{errors.hook.message}</p>
-        )}
-        <p id="hook-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Paste the first two lines of your LinkedIn post. We'll score it out of 100 and give you 3 rewrites.
-        </p>
-      </div>
+      </Field>
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="w-full py-3 px-6 bg-myntmore-primary dark:bg-myntmore-gold text-white dark:text-myntmore-primary font-medium rounded-lg hover:bg-myntmore-accent dark:hover:bg-yellow-500 focus:ring-2 focus:ring-myntmore-gold focus:ring-offset-2 dark:focus:ring-offset-myntmore-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isLoading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Grading...
-          </span>
-        ) : (
-          'Grade My Hook'
-        )}
+      <p className="text-xs leading-relaxed text-myntmore-muted">
+        Your details are saved with this session so Myntmore can follow up on the result. Do not enter
+        confidential information about other people.
+      </p>
+
+      <button type="submit" disabled={isLoading} className="mm-btn-primary w-full">
+        {isLoading ? 'Grading…' : 'Grade My Hook'}
       </button>
     </form>
+  )
+}
+
+function Field({
+  id,
+  label,
+  required,
+  error,
+  hint,
+  children,
+}: {
+  id: string
+  label: string
+  required?: boolean
+  error?: string
+  hint?: string
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-myntmore-ink">
+        {label}
+        {required ? <span className="text-myntmore-danger"> *</span> : null}
+      </label>
+      {children}
+      {error ? (
+        <p id={`${id}-error`} className="mt-1.5 text-sm text-myntmore-danger" role="alert">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${id}-hint`} className="mt-1.5 text-sm text-myntmore-muted">
+          {hint}
+        </p>
+      ) : null}
+    </div>
   )
 }

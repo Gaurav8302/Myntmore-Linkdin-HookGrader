@@ -47,6 +47,17 @@ myntmore-assignment/
 - **Loom demo**: 5–7 minutes, camera on, 4 segments
 - **Submission**: PDF with Loom link, live URL, GitHub repo
 - **Live URL**: https://myntmore-linkedin-hook-grader.vercel.app
+- **UI**: Light Myntmore tool-page pattern (white canvas, black type, yellow `#ffc247` CTAs, Inter) matching [LinkedIn Profile Optimizer](https://www.myntmore.com/tools/linkedin-optimizer)
+
+## Quick verification
+
+```bash
+cd linkedin-hook-grader && npm test && npm run build
+# Production smoke
+curl -sS https://myntmore-linkedin-hook-grader.vercel.app/ | head
+```
+
+n8n Task 1 remains local (`RPh6nEfzP2mq7GFj`). Make forwards to a public tunnel URL that must be refreshed when localtunnel restarts. Zoho genuine email drafts are not available via current MCP tools (`sendMail` is send-only and must not be used).
 
 ## Documentation
 

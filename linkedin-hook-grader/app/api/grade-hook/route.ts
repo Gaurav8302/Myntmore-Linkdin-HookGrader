@@ -52,11 +52,11 @@ export async function POST(request: NextRequest) {
     // Step 3: Prepare rewrites for storage
     const rewrites = rewriteResult.rewrites
 
-    // Step 4: Build webhook payload for outbox
+    // Step 4: Build webhook payload for outbox.
+    // session_id is set by insert_hook_grader_session RPC to the canonical row id.
     const idempotencyKey = `hook_grader_${randomUUID()}`
-    const placeholderSessionId = randomUUID()
     const webhookPayload = buildWebhookPayload(
-      placeholderSessionId,
+      '',
       idempotencyKey,
       { name, designation: designation || null, email },
       {
@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Step 5: Atomic insert session + outbox (RPC returns canonical session id)
+    // Step 5: Atomic insert session + outbox (RPC returns canonical session id
+    // and rewrites payload.session_id to match).
     const inserted = await insertSessionAtomic({
       name,
       designation: designation || null,

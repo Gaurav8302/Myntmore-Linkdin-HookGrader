@@ -211,8 +211,9 @@ describe('POST /api/grade-hook', () => {
   it('includes IP hash and user agent in payload', async () => {
     await POST(createRequest(validRequest))
 
+    // session_id is blank here; insert_hook_grader_session RPC overwrites payload.session_id
     expect(buildWebhookPayload).toHaveBeenCalledWith(
-      expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      '',
       expect.stringMatching(/^hook_grader_[0-9a-f-]{36}$/i),
       expect.objectContaining({
         name: 'John Doe',

@@ -1,4 +1,4 @@
-# Make.com Task 2 → Task 1 bridge status (2026-10-14 integration fix)
+# Make.com Task 2 → Task 1 bridge status (2026-10-14 live E2E)
 
 ## Live scenario
 
@@ -7,46 +7,67 @@
 | Scenario | `Myntmore Task2→Task1 Hook Grader Bridge` |
 | Scenario ID | `7960198` |
 | Team | `3180839` |
-| Webhook URL | Hook Grader `.env.local` → `MAKE_WEBHOOK_URL` (not committed) |
-| Status | **Active** (re-activated after URL/JSON fixes) |
+| Hook Grader production | `https://myntmore-linkedin-hook-grader.vercel.app` |
+| Make webhook | Hook Grader `MAKE_WEBHOOK_URL` (Vercel + local `.env.local`, not committed) |
+| n8n workflow | `RPh6nEfzP2mq7GFj` (local) |
+| Status | Make scenario **active**; n8n forward URL must match a **live** public tunnel |
 
 ## Modules
 
-1. `gateway:CustomWebHook` — Hook Grader outbox shape
-2. `http:MakeRequest` — POST → n8n `/webhook/myntmore-hook-grader` via public localtunnel
+1. `gateway:CustomWebHook` — Hook Grader outbox payload (`session_id`, `timestamp`, `idempotency_key`, `source`, `contact`, `hook`, `rewrites`, `metadata`)
+2. `http:MakeRequest` — POST → n8n `/webhook/myntmore-hook-grader` via public tunnel + `bypass-tunnel-reminder: true`
 
-## Reachability diagnosis and fix
+## Field mapping (explicit)
 
-| Check | Result |
-|-------|--------|
-| Local n8n `RPh6nEfzP2mq7GFj` | Running; webhook `POST /webhook/myntmore-hook-grader` → `{"ok":true}` |
-| Prior Make URL | `https://small-signs-go.loca.lt/...` → **503 Tunnel Unavailable** |
-| Fix | Started new localtunnel to port `5678`, updated Make HTTP URL to the live hostname, added `bypass-tunnel-reminder: true` |
-| JSON body failures | Make `jsonString` body broke on literal newlines in `hook.original` (`Enter valid JSON in the request body`) |
-| JSON fix | `{{replace(1.hook.original; newline; space)}}` and safe score default in the HTTP body template |
+| Source | Destination |
+|--------|-------------|
+| `contact.name` | `leads.full_name` (+ split `first_name` / `last_name`) |
+| `contact.email` | `leads.email` (required) |
+| `contact.designation` | `leads.designation` |
+| company | **Not collected** by Hook Grader form → `leads.company=null` (noted in metadata) |
+| `hook.original` | `leads.tool_input` |
+| `hook.score` (0–100) | mapped to Task1 `score` 1–10 + `routing_tier` |
+| `idempotency_key` | `leads.idempotency_key` (unique upsert) |
+| `session_id` | `leads.external_session_id` + metadata |
+| `timestamp` | `metadata.submitted_at` |
+| `source` | `leads.source` (`hook_grader`) |
 
-**Current tunnel hostname changes whenever localtunnel restarts.** Make’s HTTP URL must be updated to match. Prefer Cloudflare Tunnel for a stable hostname if available.
+## Controlled E2E (labelled test lead) — traced 2026-10-14
 
-## Controlled E2E (fictional) — verified
+Test contact: `E2E HookGrader Test` / `e2e.hookgrader.20261014T205658Z@example.invalid` (fictional — do not contact).
 
-| Step | Evidence |
-|------|----------|
-| Make accepts payload | HTTP 200 Accepted (×2 same idempotency key) |
-| Make → n8n | Executions `c788fbabd8db4fb8966a63611bedc1c8` and `1736b75de5614b879b5593b3313c1309` **success** |
-| n8n ingest | Workflow `RPh6nEfzP2mq7GFj` executions **25** and **26** **success** |
-| Supabase lead | `idempotency_key=idem-e2e-1792006653-0c699510` → lead `7a2d3f63-0326-4669-9956-1b6d050e6192` (hot / score mapped / `zoho_draft_status=dry_run_queued`) |
-| Idempotency | Retry produced **1** `leads` row for that key |
-| Emails sent | **None** (draft status dry-run only) |
+| Stage | Result | Evidence |
+|-------|--------|----------|
+| Vercel `POST /api/grade-hook` | **200** | session `6ea0afb5-f8a9-4a9c-9fa9-386a1d21ff0b`, score **83** |
+| Supabase `hook_grader_sessions` | **row present** | email + designation + score stored |
+| Supabase `webhook_outbox` | **delivered** | idempotency `hook_grader_73e5b2ea-…`; payload `session_id` matches RPC rewrite |
+| Make accepts webhook | **Accepted** | execution `e05df120ee26481e804774e1ce7f3c24` received full contact/hook payload |
+| Make → n8n (tunnel) | **Blocked / flaky** | Forward module hit **Bad Gateway** / **Too Many Requests** when localtunnel was overloaded or unavailable |
+| n8n ingest (local webhook) | **success** | executions **35** / **36**; Normalize + Upsert Lead Supabase |
+| Supabase `leads` | **1 row** | idempotent retry kept a single row; contact fields populated |
+| Zoho Lead | **created** | `1445645000000553002` Description = qualification block; **no sendMail** |
 
-## Remaining dependency
+### Honest end-to-end verdict
 
-n8n stays **local**. Make requires a **live public tunnel**. When the tunnel dies, Make returns Bad Gateway / scenario may enter `error` until the URL is refreshed and the scenario is re-activated.
+- **Production Hook Grader → Supabase session/outbox → Make webhook receive:** verified.
+- **Make → local n8n over public tunnel:** **not reliably verified** in this pass (localtunnel 502/503/429 under burst). Payload was completed into n8n/Supabase/Zoho via the same n8n webhook path Make uses (`POST /webhook/myntmore-hook-grader`).
+- Until a **stable** tunnel (prefer Cloudflare Tunnel) is pointed in Make module 3, production form submits can queue in Make as pending/error even after Make accepts the Hook Grader webhook.
 
-### Shortest restore command
+## Tunnel restore (required for live Make→n8n)
 
 ```bash
+# Keep n8n on :5678, then:
 npx localtunnel --port 5678
-# Then set Make module "Forward to n8n Task1 ingest" URL to:
-# https://<printed-host>/webhook/myntmore-hook-grader
-# Re-activate scenario 7960198 if status is error.
+# Copy printed host, then set Make module "Forward to n8n Task1 ingest" URL to:
+# https://<host>/webhook/myntmore-hook-grader
+# Keep header bypass-tunnel-reminder: true
+# Prefer: cloudflared tunnel --url http://127.0.0.1:5678
 ```
+
+Do **not** burst-process large outbox backlogs through free localtunnel; drain pending Make runs after the tunnel is healthy.
+
+## Safety
+
+- Draft-only / qualification display in Zoho Description.
+- Never call Zoho `sendMail` / send endpoints.
+- Retries upsert on `idempotency_key`.

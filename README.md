@@ -46,7 +46,7 @@ myntmore-assignment/
 - **Make.com bridge**: Hook Grader → Make → n8n Task 1
 - **Loom demo**: 5–7 minutes, camera on, 4 segments
 - **Submission**: PDF with Loom link, live URL, GitHub repo
-- **Live URL**: set after Vercel deploy (update this line with the production URL)
+- **Live URL**: https://myntmore-linkedin-hook-grader.vercel.app
 
 ## Documentation
 

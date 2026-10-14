@@ -46,17 +46,17 @@ export async function POST(request: NextRequest) {
     // Step 1: Deterministic scoring
     const scoreResult = scoreHook(hook)
 
-    // Step 2: Generate rewrites via Gemini
+    // Step 2: Generate rewrites via NVIDIA (score remains deterministic)
     const rewriteResult = await generateRewrites(hook, scoreResult.score, scoreResult.failedRules)
 
     // Step 3: Prepare rewrites for storage
     const rewrites = rewriteResult.rewrites
 
     // Step 4: Build webhook payload for outbox
-    const sessionId = randomUUID()
-    const idempotencyKey = `hook_grader_${sessionId}`
+    const idempotencyKey = `hook_grader_${randomUUID()}`
+    const placeholderSessionId = randomUUID()
     const webhookPayload = buildWebhookPayload(
-      sessionId,
+      placeholderSessionId,
       idempotencyKey,
       { name, designation: designation || null, email },
       {
@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Step 5: Atomic insert session + outbox
-    await insertSessionAtomic({
+    // Step 5: Atomic insert session + outbox (RPC returns canonical session id)
+    const inserted = await insertSessionAtomic({
       name,
       designation: designation || null,
       email,
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       idempotency_key: idempotencyKey,
       payload: webhookPayload,
     })
+    const sessionId = inserted.id
 
     // Step 6: Return response
     const response = {

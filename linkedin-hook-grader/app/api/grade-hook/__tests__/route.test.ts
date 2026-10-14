@@ -196,6 +196,10 @@ describe('POST /api/grade-hook', () => {
   })
 
   it('generates unique session ID', async () => {
+    vi.mocked(insertSessionAtomic)
+      .mockResolvedValueOnce({ id: '11111111-1111-1111-1111-111111111111' } as never)
+      .mockResolvedValueOnce({ id: '22222222-2222-2222-2222-222222222222' } as never)
+
     const first = await (await POST(createRequest(validRequest))).json()
     const second = await (
       await POST(createRequest({ ...validRequest, email: 'jane@example.com' }))

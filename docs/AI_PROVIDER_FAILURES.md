@@ -22,11 +22,16 @@ These are **observed** API responses against the configured key, not assumptions
 | Hook Grader | Deterministic `lib/scoring` for 0–100; NVIDIA only generates exactly 3 validated rewrites |
 | Task 1 email | NVIDIA JSON draft with the same writing validators; labelled `template_fallback` on failure |
 | Fallback | Never fabricated as live AI success — `fallback: true` / `source: template_fallback` |
+| Production | Live Vercel smoke (2026-10-14): `POST /api/grade-hook` returned `fallback: false`, exactly 3 rewrites, score 83; session persisted in Supabase |
 
 Several other NVIDIA catalog IDs returned 404/410 for this account or timed out; only the tested model above is claimed working.
+
+Earlier production smoke hit `NVIDIA_UNAVAILABLE` because the model sometimes wrapped JSON (smart quotes / prose). Parser now extracts the JSON object; that fix is what passed the live production check above.
 
 ## Remaining limitations
 
 - Vision-capable instruct model used for text JSON rewrites (smallest live-tested chat model for this key).
 - Vercel must receive `NVIDIA_API_KEY` as a **server** env var (not `NEXT_PUBLIC_*`).
+- Vercel Hobby cron for webhook retries is daily (`0 12 * * *`), not every minute.
 - Genuine Zoho **email-composer draft** remains unsupported by available MCPs (`sendMail` is send-only and must not be called).
+- Make → n8n bridge needs a reachable n8n URL (localtunnel when n8n stays local).

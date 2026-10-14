@@ -19,7 +19,9 @@ STRICT WRITING RULES - NEVER VIOLATE:
 5. ONLY CTA ALLOWED: "myntmore.com/founder-meeting" - no other links or CTAs
 6. Keep the person's actual voice and experience - enhance, don't replace
 
-Your output must be valid JSON matching the required schema exactly.`
+Your output must be valid JSON matching the required schema exactly.
+Return ONLY a raw JSON object. No markdown fences, no commentary, no trailing text.
+Schema: {"rewrites":[{"hook":"...","reason":"..."},{"hook":"...","reason":"..."},{"hook":"...","reason":"..."}]}`
 
 /**
  * Build user prompt with original hook, score, and context
@@ -39,15 +41,42 @@ Generate exactly 3 distinct rewrites that:
 
 Each rewrite needs a "reason" explaining what was changed and why it works better.
 
-Return JSON with exactly 3 rewrites in the "rewrites" array.`
+Return ONLY this JSON object (no markdown):
+{"rewrites":[{"hook":"...","reason":"..."},{"hook":"...","reason":"..."},{"hook":"...","reason":"..."}]}`
 }
 
 /**
- * Parse and validate Gemini response
+ * Extract a JSON object/array from model text that may include fences or prose.
+ */
+function extractJsonPayload(text: string): string {
+  let cleaned = text.trim()
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim()
+  // Normalize common smart quotes that break JSON.parse
+  cleaned = cleaned
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+
+  const objStart = cleaned.indexOf('{')
+  const objEnd = cleaned.lastIndexOf('}')
+  if (objStart !== -1 && objEnd > objStart) {
+    return cleaned.slice(objStart, objEnd + 1)
+  }
+
+  const arrStart = cleaned.indexOf('[')
+  const arrEnd = cleaned.lastIndexOf(']')
+  if (arrStart !== -1 && arrEnd > arrStart) {
+    return cleaned.slice(arrStart, arrEnd + 1)
+  }
+
+  return cleaned
+}
+
+/**
+ * Parse and validate NVIDIA rewrite response
  */
 export function parseGeminiResponse(text: string): Rewrite[] {
   try {
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(extractJsonPayload(text))
     const rawList = Array.isArray(parsed)
       ? parsed
       : parsed && typeof parsed === 'object' && Array.isArray((parsed as { rewrites?: unknown }).rewrites)

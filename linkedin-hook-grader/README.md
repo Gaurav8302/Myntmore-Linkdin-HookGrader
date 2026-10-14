@@ -9,6 +9,7 @@ A Next.js application that grades LinkedIn post hooks deterministically and gene
 - **Supabase Persistence**: Atomic session + outbox insert via PostgreSQL RPC
 - **Durable Webhook Delivery**: Outbox pattern + Vercel Cron (minute-aligned retries)
 - **Safe Fallbacks**: NVIDIA failures return 200 with `fallback: true` and original hook echoed
+- **Live URL**: https://myntmore-linkedin-hook-grader.vercel.app
 - **Vercel Ready**: Deploy with project root `linkedin-hook-grader/`
 - **Gemini**: abandoned after observed HTTP 404 / quota — see `/docs/AI_PROVIDER_FAILURES.md`
 

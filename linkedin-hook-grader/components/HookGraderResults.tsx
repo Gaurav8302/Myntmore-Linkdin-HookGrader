@@ -68,6 +68,10 @@ export function HookGraderResults({
             <p className="mt-2 text-sm text-myntmore-muted">
               Deterministic score from six explicit rules. AI does not change this number.
             </p>
+            <p className="mt-2 text-sm text-myntmore-muted">
+              First-person authority (I / I&apos;ve / we + a result) should only appear when it is
+              truthful. Rewrites may use reader-focused action instead of inventing claims.
+            </p>
           </div>
         </div>
       </div>

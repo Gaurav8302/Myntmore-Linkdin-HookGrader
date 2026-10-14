@@ -72,7 +72,8 @@ export function specificityRule(hook: string): boolean {
 
 /**
  * R4: Authority Signal Rule
- * Contains first-person pronoun AND outcome/claim verb
+ * First-person pronoun (including I've / we've contractions) AND an outcome/result verb.
+ * Unsupported self-praise without an outcome verb fails.
  */
 export function authorityRule(hook: string): boolean {
   const constants = SCORING_CONSTANTS.authority
@@ -85,20 +86,31 @@ export function authorityRule(hook: string): boolean {
 
 /**
  * R5: Action Orientation Rule
- * Starts with imperative verb OR contains action-oriented phrases
+ * Imperative start OR playbook/action phrase OR reader-focused question/CTA.
  */
 export function actionRule(hook: string): boolean {
   const constants = SCORING_CONSTANTS.action
   const trimmed = hook.trim()
   const lower = trimmed.toLowerCase()
 
-  // Check if starts with imperative verb
   if (constants.imperativeStart.test(trimmed)) {
     return true
   }
 
-  // Check for action phrases
-  return constants.actionPhrases.some(phrase => lower.includes(phrase))
+  if (constants.actionPhrases.some(phrase => lower.includes(phrase))) {
+    return true
+  }
+
+  // Reader-focused: address the reader with a question or soft CTA
+  const addressesReader = constants.readerPronoun.test(trimmed)
+  const hasQuestion = trimmed.includes('?')
+  const hasReaderCta = constants.readerCtaPhrases.some(phrase => lower.includes(phrase))
+
+  if (addressesReader && (hasQuestion || hasReaderCta)) {
+    return true
+  }
+
+  return false
 }
 
 /**
@@ -150,42 +162,48 @@ export const ALL_RULES = [
     weight: SCORING_CONSTANTS.weights.length,
     check: lengthRule,
     passReason: 'Optimal length (80-160 chars)',
-    failReason: 'Hook length outside optimal range (80-160 chars)',
+    failReason:
+      'Hook length outside optimal range (80-160 chars). Aim for about two LinkedIn preview lines.',
   },
   {
     id: 'R2',
     weight: SCORING_CONSTANTS.weights.curiosity,
     check: curiosityRule,
     passReason: 'Contains question or curiosity trigger',
-    failReason: 'No question or curiosity gap detected',
+    failReason:
+      'No question or curiosity gap detected. Add a ? or a trigger like how/why/what/mistake/secret.',
   },
   {
     id: 'R3',
     weight: SCORING_CONSTANTS.weights.specificity,
     check: specificityRule,
     passReason: 'Contains specific numbers, timeframes, or concrete outcomes',
-    failReason: 'Lacks specific numbers, timeframes, or concrete outcomes',
+    failReason:
+      'Lacks specific numbers, timeframes, or concrete outcomes. Add a digit, %, currency, or timeframe (e.g. 12 months).',
   },
   {
     id: 'R4',
     weight: SCORING_CONSTANTS.weights.authority,
     check: authorityRule,
     passReason: 'First-person authority signal with outcome present',
-    failReason: 'Missing first-person authority signal with outcome',
+    failReason:
+      'Missing first-person authority signal with outcome. Use a truthful I/we/I\'ve + result verb (e.g. "I\'ve helped 40 founders book meetings" or "We built X in 6 months"). Do not invent results.',
   },
   {
     id: 'R5',
     weight: SCORING_CONSTANTS.weights.action,
     check: actionRule,
     passReason: 'Action-oriented language or imperative structure',
-    failReason: 'Not action-oriented; no imperative or reader-focused structure',
+    failReason:
+      'Not action-oriented; no imperative or reader-focused structure. Start with an imperative (Steal this..., Learn...), ask the reader a direct question, or include a clear next step (here\'s how, playbook, roadmap).',
   },
   {
     id: 'R6',
     weight: SCORING_CONSTANTS.weights.clickbaitPenalty,
     check: clickbaitPenaltyRule,
     passReason: 'No clickbait patterns detected',
-    failReason: 'Clickbait pattern detected',
+    failReason:
+      'Clickbait pattern detected. Remove ALL CAPS shouting, stacked !!!, or phrases like "you won\'t believe".',
   },
 ] as const
 

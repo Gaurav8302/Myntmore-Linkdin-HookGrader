@@ -91,8 +91,8 @@ linkedin-hook-grader/
 | Length | 20% | 80-160 chars optimal |
 | Curiosity Gap | 20% | ? or curiosity words |
 | Specificity | 20% | Numbers, timeframes, proper nouns |
-| Authority | 15% | First-person + outcome verb |
-| Action | 15% | Imperative or action phrases |
+| Authority | 17 pts | First-person (I/I've/we/…) + outcome verb (helped, built, grew, grown, …); no invented claims |
+| Action | 17 pts | Imperative start, playbook phrase, or reader-focused you/your question/CTA |
 | Clickbait Penalty | -10% | ALL CAPS, excessive !, clickbait phrases |
 
 ## API Contract

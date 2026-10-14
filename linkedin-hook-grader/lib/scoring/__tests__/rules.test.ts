@@ -117,8 +117,23 @@ describe('Scoring Rules - Individual', () => {
       expect(authorityRule('My team launched the product')).toBe(true)
     })
 
+    it('passes for contractions and helped/grown participles', () => {
+      expect(authorityRule("I've helped 40 founders book meetings")).toBe(true)
+      expect(authorityRule('I helped 40 founders book meetings')).toBe(true)
+      expect(authorityRule('I built a LinkedIn system for outbound')).toBe(true)
+      expect(authorityRule('We helped a SaaS team cut reply time')).toBe(true)
+      expect(authorityRule("I've grown ARR to $1M")).toBe(true)
+      expect(authorityRule("We've launched three products this year")).toBe(true)
+    })
+
     it('fails for first-person without outcome', () => {
       expect(authorityRule('I think about growth')).toBe(false)
+    })
+
+    it('fails for unsupported authority / self-praise without outcome verb', () => {
+      expect(authorityRule('I am the best founder in SaaS')).toBe(false)
+      expect(authorityRule('I believe our brand is unmatched')).toBe(false)
+      expect(authorityRule('We are industry leaders')).toBe(false)
     })
 
     it('fails for outcome without first-person', () => {
@@ -128,6 +143,12 @@ describe('Scoring Rules - Individual', () => {
     it('fails for neither', () => {
       expect(authorityRule('Thinking about business')).toBe(false)
     })
+
+    it('fail reason explains missing signal with an actionable example', () => {
+      const result = scoreHook('Random thoughts on leadership every Monday morning for founders everywhere.')
+      expect(result.failedRules.some((r) => r.includes('first-person authority'))).toBe(true)
+      expect(result.failedRules.some((r) => /I.?ve helped|Do not invent/i.test(r))).toBe(true)
+    })
   })
 
   describe('R5: Action Rule', () => {
@@ -135,6 +156,8 @@ describe('Scoring Rules - Individual', () => {
       expect(actionRule('Discover how I scaled')).toBe(true)
       expect(actionRule('Learn the secret')).toBe(true)
       expect(actionRule('Build your brand')).toBe(true)
+      expect(actionRule('Steal this 3-line hook for your next post')).toBe(true)
+      expect(actionRule('Want a simple LinkedIn hook that gets replies?')).toBe(true)
     })
 
     it('passes for action phrases', () => {
@@ -145,8 +168,22 @@ describe('Scoring Rules - Individual', () => {
       expect(actionRule('Framework for growth')).toBe(true)
     })
 
+    it('passes for reader-focused questions and CTAs', () => {
+      expect(actionRule('How do you write hooks that stop the scroll?')).toBe(true)
+      expect(actionRule('What would your pipeline look like with better hooks?')).toBe(true)
+      expect(actionRule('If you want more replies, start with a clearer opener')).toBe(true)
+      expect(actionRule('Comment below and I will share the checklist')).toBe(true)
+    })
+
     it('fails for passive content', () => {
       expect(actionRule('Thinking about leadership')).toBe(false)
+      expect(actionRule('Leadership trends this quarter')).toBe(false)
+    })
+
+    it('fail reason explains imperative / reader-focused options', () => {
+      const result = scoreHook('Thinking about leadership trends across enterprise software markets today.')
+      expect(result.failedRules.some((r) => r.includes('Not action-oriented'))).toBe(true)
+      expect(result.failedRules.some((r) => /Steal this|Learn|playbook|roadmap/i.test(r))).toBe(true)
     })
   })
 
@@ -185,8 +222,8 @@ describe('Scoring - Integration Test Fixtures', () => {
     const result = scoreHook(hook)
     expect(hook.length).toBeGreaterThanOrEqual(80)
     expect(hook.length).toBeLessThanOrEqual(160)
-    expect(result.score).toBeGreaterThanOrEqual(70)
-    expect(result.failedRules).toContain('No question or curiosity gap detected')
+    expect(result.score).toBe(78) // length+specificity+authority+action = 22+22+17+17; curiosity fails
+    expect(result.failedRules.some((r) => r.startsWith('No question or curiosity gap detected'))).toBe(true)
   })
 
   it('question + specifics + authority can score near max', () => {
@@ -197,11 +234,23 @@ describe('Scoring - Integration Test Fixtures', () => {
     expect(result.score).toBe(100)
   })
 
+  it('helped + playbook rewrite passes authority and action', () => {
+    const hook =
+      "I've helped 40 founders book meetings in 90 days. Here's the exact outreach playbook we used together."
+    const result = scoreHook(hook)
+    expect(authorityRule(hook)).toBe(true)
+    expect(actionRule(hook)).toBe(true)
+    expect(result.score).toBeGreaterThanOrEqual(78)
+    expect(result.failedRules.every((r) => !r.includes('authority') && !r.includes('action-oriented'))).toBe(
+      true,
+    )
+  })
+
   it('clickbait ALL CAPS is heavily penalized', () => {
     const hook =
       "YOU WON'T BELIEVE THIS SECRET!!! SHOCKING RESULTS INSIDE FOR FOUNDERS WHO WANT MORE MEETINGS NOW!!!"
     const result = scoreHook(hook)
-    expect(result.failedRules).toContain('Clickbait pattern detected')
+    expect(result.failedRules.some((r) => r.startsWith('Clickbait pattern detected'))).toBe(true)
     expect(result.score).toBeLessThanOrEqual(50)
   })
 
@@ -210,12 +259,22 @@ describe('Scoring - Integration Test Fixtures', () => {
     expect(result.score).toBeLessThan(50)
   })
 
-  it('mistakes + numbers + curiosity without action stays mid-high', () => {
+  it('mistakes + numbers + curiosity without action stays mid-high and score is stable', () => {
     const hook =
       "3 mistakes I made scaling to 50 employees in two years while building a B2B services company from scratch."
     const result = scoreHook(hook)
-    expect(result.score).toBeGreaterThanOrEqual(50)
+    // "made" is not an outcome verb → authority fails; no imperative/reader CTA → action fails
+    expect(result.score).toBe(66) // length 22 + curiosity 22 + specificity 22
     expect(result.passedRules.some((r) => /specific|curiosity|question/i.test(r))).toBe(true)
+    expect(authorityRule(hook)).toBe(false)
+    expect(actionRule(hook)).toBe(false)
+  })
+
+  it('same mid-score hook remains deterministic across repeats', () => {
+    const hook =
+      "3 mistakes I made scaling to 50 employees in two years while building a B2B services company from scratch."
+    const scores = Array.from({ length: 50 }, () => scoreHook(hook).score)
+    expect(new Set(scores)).toEqual(new Set([66]))
   })
 })
 

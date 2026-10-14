@@ -29,6 +29,22 @@ describe('Gemini Prompt Building', () => {
     expect(SYSTEM_PROMPT).toContain('120 WORDS')
     expect(SYSTEM_PROMPT).toContain('myntmore.com/founder-meeting')
   })
+
+  it('targets real scoring predicates and forbids score mutation', () => {
+    expect(SYSTEM_PROMPT).toContain('TARGET THE ACTUAL PASS CONDITIONS')
+    expect(SYSTEM_PROMPT).toContain('helped')
+    expect(SYSTEM_PROMPT).toContain('Steal')
+    expect(SYSTEM_PROMPT).toMatch(/NEVER calculate|must NOT recalculate|NEVER calculate/i)
+    expect(SYSTEM_PROMPT).toContain('ONLY when the original hook already supports')
+
+    const prompt = buildUserPrompt('Some hook', 44, [
+      'Missing first-person authority signal with outcome',
+      'Not action-oriented; no imperative or reader-focused structure',
+    ])
+    expect(prompt).toContain('read-only context')
+    expect(prompt).toContain('must NOT recalculate')
+    expect(prompt).toContain('Missing first-person authority')
+  })
 })
 
 describe('Gemini Response Parsing', () => {

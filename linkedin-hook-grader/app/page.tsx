@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { HookGraderForm } from '@/components/HookGraderForm'
 import { HookGraderResults } from '@/components/HookGraderResults'
 import { LoadingState } from '@/components/LoadingState'
+import { MyntmoreLogo } from '@/components/MyntmoreLogo'
 
 type FormData = {
   name: string
@@ -146,17 +147,10 @@ export default function Home() {
 function SiteHeader({ onGrade }: { onGrade: () => void }) {
   return (
     <header className="sticky top-0 z-40 border-b border-myntmore-line/80 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <a href="https://myntmore.com" className="flex items-center gap-2 font-black tracking-tight">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-myntmore-yellow text-sm text-myntmore-ink">
-            M
-          </span>
-          <span>
-            Myntmore
-            <span className="ml-2 hidden text-sm font-medium text-myntmore-muted sm:inline">
-              Free Tools
-            </span>
-          </span>
+      <div className="mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between px-4">
+        <a href="https://myntmore.com" className="flex items-center gap-3 tracking-tight">
+          <MyntmoreLogo size="md" />
+          <span className="hidden text-sm font-medium text-myntmore-muted sm:inline">Free Tools</span>
         </a>
         <nav className="hidden items-center gap-6 text-sm font-medium text-myntmore-body md:flex">
           <a href="https://www.myntmore.com/resources/tools" className="hover:text-myntmore-ink">
@@ -307,12 +301,7 @@ function SiteFooter() {
     <footer className="border-t border-myntmore-line bg-white">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 md:grid-cols-3">
         <div>
-          <div className="flex items-center gap-2 font-black">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-myntmore-yellow text-sm">
-              M
-            </span>
-            Myntmore
-          </div>
+          <MyntmoreLogo size="sm" />
           <p className="mt-3 text-sm text-myntmore-body">
             B2B growth systems for companies that want predictable pipeline.
           </p>

@@ -18,8 +18,8 @@ The scoring engine is **deterministic, in-code, and uses no AI**. Same hook inpu
 | R1 | Length | 20% | Optimal character count for two-line hook | 80–160 chars inclusive | "Hook length outside optimal range (80-160 chars)" |
 | R2 | Curiosity Gap | 20% | Question mark or curiosity-triggering words | Contains `?` OR any of: how, why, what, secret, mistake, discovered, learned, realized | "No question or curiosity gap detected" |
 | R3 | Specificity | 20% | Concrete details: numbers, timeframes, proper nouns, metrics | Contains ≥1 of: digit, timeframe (month/year/week/day), capitalized proper noun, %, $, ₹, AED | "Lacks specific numbers, timeframes, or concrete outcomes" |
-| R4 | Authority Signal | 15% | First-person + outcome/claim | Contains (I/we/my/our) AND (achieved/grew/built/scaled/reached/increased/decreased/launched) | "Missing first-person authority signal with outcome" |
-| R5 | Action Orientation | 15% | Starts with verb or implies reader action | Starts with verb (imperative) OR contains: here's how, step by step, playbook, roadmap, framework, template | "Not action-oriented; no imperative or reader-focused structure" |
+| R4 | Authority Signal | 17 pts | First-person + outcome/claim | Contains (I/I've/we/we've/my/our) AND an outcome verb (helped, built, grew, grown, scaled, launched, booked, …). Bare self-praise without an outcome verb fails. | Fail reason includes an actionable truthful example |
+| R5 | Action Orientation | 17 pts | Imperative, playbook phrase, or reader-focused ask | Starts with imperative/invitation OR action phrase (here's how, playbook, roadmap, steal this, …) OR (you/your + ? / soft CTA) | Fail reason lists imperative / reader-focused options |
 | R6 | Clickbait Penalty | -10% | Penalty for manipulative patterns | NONE of: ALL CAPS word >3 chars, ≥3 exclamation marks, "you won't believe", "shocking", "secret revealed", "doctors hate" | "Clickbait pattern detected" (subtracts 10 points) |
 
 ---

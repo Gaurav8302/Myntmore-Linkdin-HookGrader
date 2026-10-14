@@ -36,15 +36,30 @@ export const SCORING_CONSTANTS = {
     properNounPattern: /[A-Z][a-z]{6,}(?:\s+[A-Z][a-z]+)*/,
   },
 
-  // Authority rule patterns
+  /**
+   * R4 Authority predicates
+   * Pass = first-person signal AND outcome/result verb (including contractions + participles).
+   * Does NOT accept bare self-praise without an outcome verb.
+   */
   authority: {
-    firstPersonPronouns: /\b(i|we|my|our)\b/i,
-    outcomeVerbs: /\b(achieved|grew|built|scaled|reached|increased|decreased|launched|created|generated|delivered)\b/i,
+    // I / I've / I'm / I'd / I'll / we / we've / ... / my / our
+    firstPersonPronouns:
+      /\b(i(?:'m|'ve|'d|'ll)?|we(?:'re|'ve|'d|'ll)?|my|our)\b/i,
+    // Past / participle outcome verbs that imply a result (not vague "think" / "am")
+    outcomeVerbs:
+      /\b(achieved|grew|grown|built|scaled|reached|increased|decreased|launched|created|generated|delivered|helped|improved|reduced|closed|won|raised|hired|sold|shipped|booked|saved|landed|published|signed|converted|doubled|tripled|cut|secured|expanded|optimized|optimised)\b/i,
   },
 
-  // Action rule patterns
+  /**
+   * R5 Action predicates
+   * Pass if ANY of:
+   * - starts with an imperative / invitation verb
+   * - contains a known action/playbook phrase
+   * - reader-focused question or CTA (you/your + ? or CTA phrase)
+   */
   action: {
-    imperativeStart: /^(discover|learn|find|get|build|create|make|start|stop|avoid|use|try|see|watch|read|download|join|sign up|subscribe|register)\b/i,
+    imperativeStart:
+      /^(discover|learn|find|get|build|create|make|start|stop|avoid|use|try|see|watch|read|download|join|sign[\s-]?up|subscribe|register|steal|save|comment|share|follow|book|send|apply|check|grab|take|pick|ask|tell|show|prove|don't|do not|want|ready|need|looking)\b/i,
     actionPhrases: [
       "here's how",
       "here is how",
@@ -61,6 +76,26 @@ export const SCORING_CONSTANTS = {
       "system",
       "strategy",
       "approach",
+      "steal this",
+      "save this",
+      "comment below",
+      "dm me",
+      "next step",
+      "for you",
+      "you can",
+      "your next",
+    ],
+    // Reader address
+    readerPronoun: /\b(you|your)\b/i,
+    // Soft CTA / invitation phrases (also used with reader pronouns)
+    readerCtaPhrases: [
+      'want to',
+      'ready to',
+      'looking for',
+      'need to',
+      'if you',
+      "here's how you",
+      'here is how you',
     ],
   },
 

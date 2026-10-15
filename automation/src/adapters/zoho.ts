@@ -555,7 +555,7 @@ export async function createZohoDraft(
   }
 
   if (mode === "qualification_description" || mode === "note_placeholder") {
-    // Legacy Notes path (not a native email draft) — audit/qualification only
+    // Not-a-fit / no native draft: Lead already holds Description; Notes are optional audit.
     try {
       const res = await fetchImpl(`${apiBase(client)}/Notes`, {
         method: "POST",
@@ -578,18 +578,11 @@ export async function createZohoDraft(
           draftId: null,
           result: {
             mode: "draft_only",
-            wouldCreateDraft: true,
-            status: "failed",
-            detail: `Zoho note API error (${res.status}): ${body.slice(0, 300)}`,
+            wouldCreateDraft: false,
+            status: "skipped",
+            detail: `Lead ${zohoLeadId} upserted (no email draft). Optional Zoho Note skipped (${res.status}): ${body.slice(0, 200)}`,
           },
-          errors: [
-            {
-              stage: "zoho",
-              code: "ZOHO_DRAFT_FAILED",
-              message: `Zoho note failed with status ${res.status}`,
-              recoverable: false,
-            },
-          ],
+          errors: [],
         };
       }
       return {
@@ -597,9 +590,9 @@ export async function createZohoDraft(
         draftId: null,
         result: {
           mode: "draft_only",
-          wouldCreateDraft: true,
-          status: "created",
-          detail: "Zoho Note with qualification text created (not Email Drafts composer)",
+          wouldCreateDraft: false,
+          status: "skipped",
+          detail: `Lead ${zohoLeadId} upserted with qualification Note (no email draft; never send)`,
         },
         errors: [],
       };
@@ -610,18 +603,11 @@ export async function createZohoDraft(
         draftId: null,
         result: {
           mode: "draft_only",
-          wouldCreateDraft: true,
-          status: "failed",
-          detail: `Zoho request error: ${message}`,
+          wouldCreateDraft: false,
+          status: "skipped",
+          detail: `Lead ${zohoLeadId} upserted (no email draft). Optional Zoho Note error: ${message}`,
         },
-        errors: [
-          {
-            stage: "zoho",
-            code: "ZOHO_DRAFT_ERROR",
-            message,
-            recoverable: false,
-          },
-        ],
+        errors: [],
       };
     }
   }

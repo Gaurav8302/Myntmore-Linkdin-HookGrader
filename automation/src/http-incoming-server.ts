@@ -4,6 +4,10 @@
  *
  *   npm run process:incoming:server
  *   POST http://127.0.0.1:8791/process-incoming
+ *
+ * Accepts either:
+ * - Make Hook Grader webhook body (contact/hook/idempotency_key)
+ * - n8n processed-lead JSON from CSV or Normalize Make Payload
  */
 import http from "node:http";
 import { resolveZohoClient } from "./adapters/resolveZohoClient.js";
@@ -13,17 +17,35 @@ import {
   hookGraderPayloadToRawLead,
   type HookGraderMakePayload,
 } from "./ingest/hookGrader.js";
+import {
+  isN8nProcessedLeadPayload,
+  n8nProcessedLeadToIngest,
+  type N8nProcessedIngest,
+} from "./ingest/n8nProcessed.js";
 import { processIncomingLead } from "./pipeline/processIncomingLead.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.INCOMING_HTTP_PORT || 8791);
 
+function resolveIngest(payload: unknown): N8nProcessedIngest {
+  if (isN8nProcessedLeadPayload(payload)) {
+    return n8nProcessedLeadToIngest(payload);
+  }
+  const make = hookGraderPayloadToRawLead(payload as HookGraderMakePayload);
+  return {
+    raw: make.raw,
+    idempotencyKey: make.idempotencyKey,
+    source: make.source,
+    hookScore100: make.hookScore100,
+  };
+}
+
 async function handleProcessIncoming(
-  payload: HookGraderMakePayload,
+  payload: unknown,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   loadLocalEnv();
   const config = loadConfig();
-  const ingest = hookGraderPayloadToRawLead(payload);
+  const ingest = resolveIngest(payload);
 
   let zoho;
   try {
@@ -75,7 +97,10 @@ async function handleProcessIncoming(
     (lead.zoho.status === "created" && !!lead.zoho.draftId);
   const ok =
     lead.persistence.status !== "failed" &&
-    (!needsDraft || draftOk || lead.zoho.status === "skipped");
+    (!needsDraft ||
+      draftOk ||
+      lead.zoho.status === "skipped" ||
+      (!!lead.zoho.zohoLeadId && !needsDraft));
 
   return {
     status: ok ? 200 : 422,
@@ -112,7 +137,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/process-incoming") {
       const raw = await readBody(req);
-      const payload = JSON.parse(raw) as HookGraderMakePayload;
+      const payload = JSON.parse(raw) as unknown;
       const result = await handleProcessIncoming(payload);
       res.writeHead(result.status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(result.body));

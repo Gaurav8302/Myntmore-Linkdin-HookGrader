@@ -8,25 +8,26 @@ type MyntmoreLogoProps = {
 }
 
 /**
- * Official Myntmore mark from brand assets (icon + Mynt/more colour split in the PNG).
+ * Official Myntmore mark from https://www.myntmore.com/logo.png
+ * (stacked icon + Mynt/more colour-split wordmark).
  */
 export function MyntmoreLogo({
   className = '',
   size = 'sm',
   showWordmark = true,
 }: MyntmoreLogoProps) {
-  // Source asset is stacked (icon + wordmark), ~130×73.
-  const height = size === 'md' ? 52 : 44
-  const width = Math.round(height * (130 / 73))
+  // Official asset is 2058×1336 (stacked icon + wordmark).
+  const height = size === 'md' ? 56 : 40
+  const width = Math.round(height * (2058 / 1336))
 
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
+    <span className={`inline-flex items-center ${className}`}>
       <Image
         src="/myntmore-logo.png"
         alt="Myntmore"
         width={width}
         height={height}
-        className="h-auto w-auto object-contain"
+        className="h-auto w-auto max-w-full object-contain"
         priority
       />
       {showWordmark ? <span className="sr-only">Myntmore</span> : null}

@@ -132,7 +132,7 @@ export function HookGraderForm({ onSubmit, isLoading, error }: HookGraderFormPro
       </Field>
 
       <p className="rounded-xl border border-myntmore-line bg-myntmore-soft/60 px-3 py-2.5 text-xs leading-relaxed text-myntmore-body">
-        Authority tip: first-person claims (I / I&apos;ve / we + a result) only help the score when they
+        Authority tip: first-person claims (I / I&apos;ve / we + a result) are optional and only help when they
         are truthful. Do not invent outcomes you did not achieve. Reader-focused questions and
         imperatives can still score well without personal claims.
       </p>

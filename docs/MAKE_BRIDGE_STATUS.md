@@ -1,4 +1,4 @@
-# Make.com Task 2 → Task 1 bridge status (2026-10-14 live E2E)
+# Make.com Task 2 → Task 1 bridge status (Cloudflare tunnel verify)
 
 ## Live scenario
 
@@ -8,63 +8,74 @@
 | Scenario ID | `7960198` |
 | Team | `3180839` |
 | Hook Grader production | `https://myntmore-linkedin-hook-grader.vercel.app` |
-| Make webhook | Hook Grader `MAKE_WEBHOOK_URL` (Vercel + local `.env.local`, not committed) |
-| n8n workflow | `RPh6nEfzP2mq7GFj` (local) |
-| Status | Make scenario **active**; n8n forward URL must match a **live** public tunnel |
+| Make webhook (Hook Grader → Make) | `MAKE_WEBHOOK_URL` in Hook Grader / automation `.env.local` (not committed) |
+| n8n workflow | `RPh6nEfzP2mq7GFj` (local, active) |
+| n8n webhook path | `/webhook/myntmore-hook-grader` |
+| Local tunnel base reference | `N8N_PUBLIC_BASE_URL` in `automation/.env.local` |
+
+## Two different URLs (do not confuse)
+
+| Variable / store | Direction | Who owns it |
+|------------------|-----------|-------------|
+| `MAKE_WEBHOOK_URL` | Hook Grader outbox → Make Custom Webhook | Vercel + local `.env.local` |
+| Make module **Forward to n8n Task1 ingest** URL | Make → public tunnel → local n8n | **Make.com scenario only** |
+| `N8N_PUBLIC_BASE_URL` + `N8N_WEBHOOK_PATH` | Local reference for the Make→n8n URL | `automation/.env.local` (gitignored) |
+
+Changing `N8N_PUBLIC_BASE_URL` does **not** update Make.com. There is no sync job.
+
+Constructed ingest URL:
+
+```text
+${N8N_PUBLIC_BASE_URL}${N8N_WEBHOOK_PATH}
+# e.g. https://hash-schema-nyc-lamps.trycloudflare.com/webhook/myntmore-hook-grader
+```
+
+Print locally:
+
+```bash
+cd automation && npm run print:n8n-ingest-url
+```
 
 ## Modules
 
-1. `gateway:CustomWebHook` — Hook Grader outbox payload (`session_id`, `timestamp`, `idempotency_key`, `source`, `contact`, `hook`, `rewrites`, `metadata`)
-2. `http:MakeRequest` — POST → n8n `/webhook/myntmore-hook-grader` via public tunnel + `bypass-tunnel-reminder: true`
+1. `gateway:CustomWebHook` — Hook Grader outbox payload
+2. `http:MakeRequest` — POST → `${N8N_PUBLIC_BASE_URL}/webhook/myntmore-hook-grader` + `bypass-tunnel-reminder: true`
 
-## Field mapping (explicit)
+## Hostname update procedure (Quick Tunnel changed)
 
-| Source | Destination |
-|--------|-------------|
-| `contact.name` | `leads.full_name` (+ split `first_name` / `last_name`) |
-| `contact.email` | `leads.email` (required) |
-| `contact.designation` | `leads.designation` |
-| company | **Not collected** by Hook Grader form → `leads.company=null` (noted in metadata) |
-| `hook.original` | `leads.tool_input` |
-| `hook.score` (0–100) | mapped to Task1 `score` 1–10 + `routing_tier` |
-| `idempotency_key` | `leads.idempotency_key` (unique upsert) |
-| `session_id` | `leads.external_session_id` + metadata |
-| `timestamp` | `metadata.submitted_at` |
-| `source` | `leads.source` (`hook_grader`) |
+When Cloudflare Quick Tunnel prints a new `https://….trycloudflare.com` host:
 
-## Controlled E2E (labelled test lead) — traced 2026-10-14
+1. Edit `automation/.env.local`:
+   ```bash
+   N8N_PUBLIC_BASE_URL=https://NEW-HOST.trycloudflare.com
+   N8N_WEBHOOK_PATH=/webhook/myntmore-hook-grader
+   ```
+2. Confirm: `cd automation && npm run print:n8n-ingest-url`
+3. In Make scenario `7960198`, open module **Forward to n8n Task1 ingest** and set URL to that printed value (keep JSON body + headers). Save / keep scenario **active**.
+4. Verify (do not restart services):
+   ```bash
+   curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5678/healthz
+   curl -sS -X POST "$N8N_PUBLIC_BASE_URL/webhook/myntmore-hook-grader" \
+     -H 'Content-Type: application/json' \
+     -H 'bypass-tunnel-reminder: true' \
+     -d '{"probe":true,"idempotency_key":"probe_hostname_check"}'
+   ```
+5. Replay a known Make execution (idempotent lead upsert) or submit one labelled Hook Grader test. Confirm Make success → n8n success → one Supabase `leads` row → Zoho Description only (no `sendMail`).
 
-Test contact: `E2E HookGrader Test` / `e2e.hookgrader.20261014T205658Z@example.invalid` (fictional — do not contact).
+## Verified 2026-10-15 (Cloudflare Quick Tunnel)
 
-| Stage | Result | Evidence |
-|-------|--------|----------|
-| Vercel `POST /api/grade-hook` | **200** | session `6ea0afb5-f8a9-4a9c-9fa9-386a1d21ff0b`, score **83** |
-| Supabase `hook_grader_sessions` | **row present** | email + designation + score stored |
-| Supabase `webhook_outbox` | **delivered** | idempotency `hook_grader_73e5b2ea-…`; payload `session_id` matches RPC rewrite |
-| Make accepts webhook | **Accepted** | execution `e05df120ee26481e804774e1ce7f3c24` received full contact/hook payload |
-| Make → n8n (tunnel) | **Blocked / flaky** | Forward module hit **Bad Gateway** / **Too Many Requests** when localtunnel was overloaded or unavailable |
-| n8n ingest (local webhook) | **success** | executions **35** / **36**; Normalize + Upsert Lead Supabase |
-| Supabase `leads` | **1 row** | idempotent retry kept a single row; contact fields populated |
-| Zoho Lead | **created** | `1445645000000553002` Description = qualification block; **no sendMail** |
-
-### Honest end-to-end verdict
-
-- **Production Hook Grader → Supabase session/outbox → Make webhook receive:** verified.
-- **Make → local n8n over public tunnel:** **not reliably verified** in this pass (localtunnel 502/503/429 under burst). Payload was completed into n8n/Supabase/Zoho via the same n8n webhook path Make uses (`POST /webhook/myntmore-hook-grader`).
-- Until a **stable** tunnel (prefer Cloudflare Tunnel) is pointed in Make module 3, production form submits can queue in Make as pending/error even after Make accepts the Hook Grader webhook.
-
-## Tunnel restore (required for live Make→n8n)
-
-```bash
-# Keep n8n on :5678, then:
-npx localtunnel --port 5678
-# Copy printed host, then set Make module "Forward to n8n Task1 ingest" URL to:
-# https://<host>/webhook/myntmore-hook-grader
-# Keep header bypass-tunnel-reminder: true
-# Prefer: cloudflared tunnel --url http://127.0.0.1:5678
-```
-
-Do **not** burst-process large outbox backlogs through free localtunnel; drain pending Make runs after the tunnel is healthy.
+| Check | Result |
+|-------|--------|
+| n8n `127.0.0.1:5678/healthz` | **200** `{"status":"ok"}` |
+| `cloudflared tunnel --url http://127.0.0.1:5678` | running (not restarted) |
+| Public host `hash-schema-nyc-lamps.trycloudflare.com` | webhook POST → `{"ok":true}` |
+| n8n workflow `RPh6nEfzP2mq7GFj` | **active**; path `myntmore-hook-grader` |
+| Make forward URL (before) | **mismatch** → `few-cases-tap.loca.lt` (dead localtunnel) |
+| Make forward URL (after) | `https://hash-schema-nyc-lamps.trycloudflare.com/webhook/myntmore-hook-grader` |
+| Make replay of E2E payload | exec `ac6c3aa7540e413f926fe1800ccb1c27` **success** (replay of `e05df120…`) |
+| n8n webhook run | exec **39** **success**; `Host: hash-schema-nyc-lamps.trycloudflare.com`, `User-Agent: Make/production` |
+| Supabase `leads` | **1** row `962ef040-…` for `hook_grader_73e5b2ea-…` (idempotent) |
+| Zoho Lead | `1445645000000553002` Description qualification block; **no sendMail** |
 
 ## Safety
 

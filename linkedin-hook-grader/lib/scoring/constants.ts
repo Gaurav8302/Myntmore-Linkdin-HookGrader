@@ -5,12 +5,17 @@
  */
 
 export const SCORING_CONSTANTS = {
-  // Rule weights (sum to 100 before penalty)
+  /**
+   * Positive rule weights (R1–R5) sum to 100 before the clickbait penalty.
+   * Authority is intentionally lighter (~half of the prior 17). The 9 points
+   * removed from authority are redistributed to curiosity (+5) and specificity (+4).
+   */
   weights: {
     length: 22,
-    curiosity: 22,
-    specificity: 22,
-    authority: 17,
+    curiosity: 27,
+    specificity: 26,
+    /** Was 17; reduced ~50% so missing I/we + outcome does not dominate. */
+    authority: 8,
     action: 17,
     clickbaitPenalty: -10,
   },

@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "process:csv": "tsx src/cli.ts process-csv",
+    "print:n8n-ingest-url": "tsx scripts/print-n8n-ingest-url.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "engines": {

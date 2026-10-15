@@ -144,10 +144,10 @@ describe('Scoring Rules - Individual', () => {
       expect(authorityRule('Thinking about business')).toBe(false)
     })
 
-    it('fail reason explains missing signal with an actionable example', () => {
+    it('fail reason explains optional authority without inventing results', () => {
       const result = scoreHook('Random thoughts on leadership every Monday morning for founders everywhere.')
-      expect(result.failedRules.some((r) => r.includes('first-person authority'))).toBe(true)
-      expect(result.failedRules.some((r) => /I.?ve helped|Do not invent/i.test(r))).toBe(true)
+      expect(result.failedRules.some((r) => /first-person authority|Optional first-person/i.test(r))).toBe(true)
+      expect(result.failedRules.some((r) => /Do not invent|smaller score impact/i.test(r))).toBe(true)
     })
   })
 
@@ -222,15 +222,17 @@ describe('Scoring - Integration Test Fixtures', () => {
     const result = scoreHook(hook)
     expect(hook.length).toBeGreaterThanOrEqual(80)
     expect(hook.length).toBeLessThanOrEqual(160)
-    expect(result.score).toBe(78) // length+specificity+authority+action = 22+22+17+17; curiosity fails
+    // length+specificity+authority+action = 22+26+8+17; curiosity fails
+    expect(result.score).toBe(73)
     expect(result.failedRules.some((r) => r.startsWith('No question or curiosity gap detected'))).toBe(true)
   })
 
-  it('question + specifics + authority can score near max', () => {
+  it('question + specifics + authority can score at the current max', () => {
     const hook =
       "How I scaled to $1M ARR in 12 months for our B2B product? Here is the exact three-channel playbook we used."
     const result = scoreHook(hook)
     expect(result.failedRules).toHaveLength(0)
+    // 22+27+26+8+17
     expect(result.score).toBe(100)
   })
 
@@ -240,7 +242,7 @@ describe('Scoring - Integration Test Fixtures', () => {
     const result = scoreHook(hook)
     expect(authorityRule(hook)).toBe(true)
     expect(actionRule(hook)).toBe(true)
-    expect(result.score).toBeGreaterThanOrEqual(78)
+    expect(result.score).toBeGreaterThanOrEqual(73)
     expect(result.failedRules.every((r) => !r.includes('authority') && !r.includes('action-oriented'))).toBe(
       true,
     )
@@ -264,7 +266,7 @@ describe('Scoring - Integration Test Fixtures', () => {
       "3 mistakes I made scaling to 50 employees in two years while building a B2B services company from scratch."
     const result = scoreHook(hook)
     // "made" is not an outcome verb → authority fails; no imperative/reader CTA → action fails
-    expect(result.score).toBe(66) // length 22 + curiosity 22 + specificity 22
+    expect(result.score).toBe(75) // length 22 + curiosity 27 + specificity 26
     expect(result.passedRules.some((r) => /specific|curiosity|question/i.test(r))).toBe(true)
     expect(authorityRule(hook)).toBe(false)
     expect(actionRule(hook)).toBe(false)
@@ -274,15 +276,52 @@ describe('Scoring - Integration Test Fixtures', () => {
     const hook =
       "3 mistakes I made scaling to 50 employees in two years while building a B2B services company from scratch."
     const scores = Array.from({ length: 50 }, () => scoreHook(hook).score)
-    expect(new Set(scores)).toEqual(new Set([66]))
+    expect(new Set(scores)).toEqual(new Set([75]))
+  })
+})
+
+describe('Authority weight regression (lighter R4)', () => {
+  const withAuthority =
+    "How I've helped 40 founders book meetings in 90 days: steal this LinkedIn playbook for your next post."
+  const withoutAuthority =
+    'How do most founders still get ignored on LinkedIn? Steal this 3-line hook playbook for your next B2B post.'
+
+  it('authority is 8; curiosity/specificity absorb the redistributed points', () => {
+    expect(SCORING_CONSTANTS.weights.authority).toBe(8)
+    expect(SCORING_CONSTANTS.weights.length).toBe(22)
+    expect(SCORING_CONSTANTS.weights.curiosity).toBe(27)
+    expect(SCORING_CONSTANTS.weights.specificity).toBe(26)
+    expect(SCORING_CONSTANTS.weights.action).toBe(17)
+    expect(SCORING_CONSTANTS.weights.clickbaitPenalty).toBe(-10)
+  })
+
+  it('non-authority hook can still score strongly when other rules pass', () => {
+    expect(authorityRule(withoutAuthority)).toBe(false)
+    const result = scoreHook(withoutAuthority)
+    // length + curiosity + specificity + action = 22+27+26+17
+    expect(result.score).toBe(92)
+    expect(result.score).toBeGreaterThanOrEqual(80)
+  })
+
+  it('otherwise similar hooks differ by the authority weight only', () => {
+    const withScore = scoreHook(withAuthority).score
+    const withoutScore = scoreHook(withoutAuthority).score
+    expect(authorityRule(withAuthority)).toBe(true)
+    expect(authorityRule(withoutAuthority)).toBe(false)
+    expect(withScore).toBe(100)
+    expect(withoutScore).toBe(92)
+    expect(withScore - withoutScore).toBe(SCORING_CONSTANTS.weights.authority)
   })
 })
 
 describe('Constants', () => {
-  it('weights sum to 100 before penalty', () => {
+  it('positive weights sum to 100 before penalty', () => {
     const { weights } = SCORING_CONSTANTS
     const sum = weights.length + weights.curiosity + weights.specificity + weights.authority + weights.action
     expect(sum).toBe(100)
+    expect(weights.authority).toBe(8)
+    expect(weights.curiosity).toBe(27)
+    expect(weights.specificity).toBe(26)
   })
 
   it('penalty weight is negative', () => {

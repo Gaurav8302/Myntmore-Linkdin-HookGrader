@@ -15,10 +15,10 @@ The scoring engine is **deterministic, in-code, and uses no AI**. Same hook inpu
 
 | Rule ID | Name | Weight | Description | Pass Condition | Fail Reason (one line) |
 |---------|------|--------|-------------|----------------|------------------------|
-| R1 | Length | 20% | Optimal character count for two-line hook | 80–160 chars inclusive | "Hook length outside optimal range (80-160 chars)" |
-| R2 | Curiosity Gap | 20% | Question mark or curiosity-triggering words | Contains `?` OR any of: how, why, what, secret, mistake, discovered, learned, realized | "No question or curiosity gap detected" |
-| R3 | Specificity | 20% | Concrete details: numbers, timeframes, proper nouns, metrics | Contains ≥1 of: digit, timeframe (month/year/week/day), capitalized proper noun, %, $, ₹, AED | "Lacks specific numbers, timeframes, or concrete outcomes" |
-| R4 | Authority Signal | 17 pts | First-person + outcome/claim | Contains (I/I've/we/we've/my/our) AND an outcome verb (helped, built, grew, grown, scaled, launched, booked, …). Bare self-praise without an outcome verb fails. | Fail reason includes an actionable truthful example |
+| R1 | Length | 22 pts | Optimal character count for two-line hook | 80–160 chars inclusive | "Hook length outside optimal range (80-160 chars)" |
+| R2 | Curiosity Gap | 27 pts | Question mark or curiosity-triggering words | Contains `?` OR any of: how, why, what, secret, mistake, discovered, learned, realized | "No question or curiosity gap detected" |
+| R3 | Specificity | 26 pts | Concrete details: numbers, timeframes, proper nouns, metrics | Contains ≥1 of: digit, timeframe (month/year/week/day), capitalized proper noun, %, $, ₹, AED | "Lacks specific numbers, timeframes, or concrete outcomes" |
+| R4 | Authority Signal | 8 pts (was 17; ~50% lighter) | Optional first-person + outcome | Contains (I/I've/we/we've/my/our) AND an outcome verb (helped, built, grew, grown, scaled, launched, booked, …). Bare self-praise without an outcome verb fails. Missing authority no longer dominates the score. | Fail reason notes optional impact; do not invent results |
 | R5 | Action Orientation | 17 pts | Imperative, playbook phrase, or reader-focused ask | Starts with imperative/invitation OR action phrase (here's how, playbook, roadmap, steal this, …) OR (you/your + ? / soft CTA) | Fail reason lists imperative / reader-focused options |
 | R6 | Clickbait Penalty | -10% | Penalty for manipulative patterns | NONE of: ALL CAPS word >3 chars, ≥3 exclamation marks, "you won't believe", "shocking", "secret revealed", "doctors hate" | "Clickbait pattern detected" (subtracts 10 points) |
 
@@ -114,4 +114,4 @@ interface ScoreResult {
 - Failed rules shown to user for transparency
 - Score included in webhook payload for Task 1 routing
 - Rules are **independent** — can be added/removed without affecting others
-- Weights sum to 100% (before penalty); penalty subtracts from total
+- Positive weights sum to 100 (authority 8; curiosity 27 and specificity 26 absorb the redistributed points); clickbait penalty subtracts from total

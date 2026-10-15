@@ -187,7 +187,7 @@ export const ALL_RULES = [
     check: authorityRule,
     passReason: 'First-person authority signal with outcome present',
     failReason:
-      'Missing first-person authority signal with outcome. Use a truthful I/we/I\'ve + result verb (e.g. "I\'ve helped 40 founders book meetings" or "We built X in 6 months"). Do not invent results.',
+      'Optional first-person authority with a truthful outcome is missing (smaller score impact). A strong hook can still score well without it. If you have a real result, add I/we/I\'ve + a result verb (e.g. "I\'ve helped 40 founders book meetings"). Do not invent results.',
   },
   {
     id: 'R5',

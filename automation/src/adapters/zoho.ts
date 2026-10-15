@@ -340,9 +340,11 @@ export async function createNativeZohoEmailDraft(
           __email_drafts: [
             {
               from: from.email,
+              // Zoho: rich_text=false → body must be plainTextContent (not content).
+              // content is HTML-only when rich_text=true; using content here left drafts empty.
               rich_text: false,
               subject: input.subject,
-              content: input.body,
+              plainTextContent: input.body,
               to: [
                 {
                   email: input.email,

@@ -19,7 +19,7 @@ Hot/Warm leads in `processLead` / `processIncomingLead` (CSV and Hook Grader via
 
 1. Generate personalized email draft (template/NVIDIA) under 120 words, CTA `myntmore.com/founder-meeting`.
 2. Persist JSON artifact in Supabase `email_draft_artifacts` (audit/fallback).
-3. When `PIPELINE_MODE=live` and Zoho OAuth is configured (`ZOHO_CLIENT_ID` + `ZOHO_CLIENT_SECRET` + `ZOHO_REFRESH_TOKEN`): create **native** Zoho email draft via `__email_drafts`, then verify via GET list.
+3. When `PIPELINE_MODE=live` and Zoho OAuth is configured (`ZOHO_CLIENT_ID` + `ZOHO_CLIENT_SECRET` + `ZOHO_REFRESH_TOKEN`): create **native** Zoho email draft via `__email_drafts`, then verify via GET list. Plain-text drafts must use `rich_text: false` + `plainTextContent` (not `content` — that field is HTML-only and left the composer body empty).
 4. From-address resolution order: `ZOHO_FROM_EMAIL` → `settings/emails/actions/from_addresses` → Lead Owner email.
 5. Never call `sendMail` / `/actions/send_mail`.
 

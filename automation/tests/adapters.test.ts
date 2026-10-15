@@ -219,6 +219,15 @@ describe("Zoho adapter (draft-only)", () => {
         const body = String(init.body);
         expect(body).toContain("sender@myntmore.example");
         expect(body).toContain(source);
+        const parsed = JSON.parse(body) as {
+          __email_drafts: Array<Record<string, unknown>>;
+        };
+        const draft = parsed.__email_drafts[0];
+        expect(draft.from).toBe("sender@myntmore.example");
+        expect(draft.source).toBe(source);
+        expect(draft.rich_text).toBe(false);
+        expect(draft.plainTextContent).toBe("Body myntmore.com/founder-meeting");
+        expect(draft.content).toBeUndefined();
         expect(body).not.toMatch(/send_mail|sendMail/i);
         return new Response(
           JSON.stringify({

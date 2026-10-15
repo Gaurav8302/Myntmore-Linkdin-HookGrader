@@ -113,11 +113,13 @@ export async function POST(request: NextRequest) {
     })
     const sessionId = inserted.id
 
-    // Best-effort immediate outbox flush so delivery does not wait solely on cron.
-    // Failures are non-blocking; cron remains the durable retry path.
-    void processOutbox().catch((err) => {
+    // Await outbox flush before returning. Hobby cron is daily-only, so fire-and-forget
+    // is routinely killed when the serverless response finishes and Make never receives.
+    try {
+      await processOutbox()
+    } catch (err) {
       console.error('Immediate outbox flush failed:', err instanceof Error ? err.message : err)
-    })
+    }
 
     // Step 6: Return response
     const response = {

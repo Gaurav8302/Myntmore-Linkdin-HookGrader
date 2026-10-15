@@ -10,6 +10,7 @@ const TOOL_TO_SERVICE = {
   case_study_generator: 'ai_lead_generation',
   icp_builder: 'icp_mapping',
   lead_magnet_ideas: 'ai_lead_generation',
+  linkedin_hook_grader: 'personal_branding',
 };
 const SERVICE_DISPLAY = {
   linkedin_outreach: 'LinkedIn Outreach & Automation',
@@ -40,7 +41,7 @@ function scoreServiceFits(clean){
     {id:'icp_mapping', weight:2, patterns:[/\bicp\b/i,/\bideal customer\b/i,/\blead scoring\b/i,/\bintent\b/i]},
     {id:'ai_lead_generation', weight:2, patterns:[/\bai (agents?|lead|research)\b/i,/\bmanual research\b/i,/\benrich/i,/\blead magnet\b/i,/\bcase study\b/i]},
     {id:'account_based_marketing', weight:2, patterns:[/\baccount-?based\b|\babm\b/i,/\bnamed accounts?\b/i,/\btarget accounts?\b/i,/\bbuying committee\b/i]},
-    {id:'personal_branding', weight:2, patterns:[/\bpersonal brand/i,/\bghostwrit/i,/\bfounder presence\b/i,/\bposting rhythm\b/i,/\bposts? (per month|a month)\b/i]},
+    {id:'personal_branding', weight:2, patterns:[/\bpersonal brand/i,/\bghostwrit/i,/\bfounder presence\b/i,/\bposting rhythm\b/i,/\bposts? (per month|a month)\b/i,/\blinkedin hook\b/i,/\bhook grader\b/i]},
     {id:'gtm_strategy', weight:2, patterns:[/\bgtm\b|\bgo-?to-?market\b/i,/\bpositioning\b/i,/\bchannel mix\b/i]},
   ];
   const scores = defs.map(d=>{
@@ -83,12 +84,12 @@ function draftId(idem, tier){
   return 'draft_'+Math.abs(h).toString(16)+'_'+tier;
 }
 
-function buildArtifact(raw, clean, qual, routed, emailDraft){
+function buildArtifact(raw, clean, qual, routed, emailDraft, sourceLabel){
   if(!emailDraft || emailDraft.blocked || (routed.tier!=='hot' && routed.tier!=='warm')) return null;
   return {
     draft_id: draftId(clean.idempotencyKey, routed.tier),
     lead_id: raw.lead_id,
-    source: 'csv',
+    source: sourceLabel || 'csv',
     lead_temperature: routed.tier==='hot'?'Hot':'Warm',
     service_fit_primary: qual.primary ? SERVICE_DISPLAY[qual.primary] : 'Unassigned',
     service_fit_secondary: qual.secondary ? SERVICE_DISPLAY[qual.secondary] : null,
@@ -106,7 +107,7 @@ function buildArtifact(raw, clean, qual, routed, emailDraft){
   };
 }
 
-function classify(raw, byEmail){
+function classify(raw, byEmail, idempotencyKey){
   const n = {
     firstName: norm(raw.first_name), lastName: norm(raw.last_name),
     fullName: norm(raw.first_name+' '+raw.last_name),
@@ -141,7 +142,7 @@ function classify(raw, byEmail){
   if(flags.size===0){ flags.add('ok'); reasons.push('Passed cleaning checks'); }
   const blocking = flags.has('test_entry')||flags.has('non_buyer')||flags.has('prompt_injection')||flags.has('missing_email')||flags.has('malformed');
   return {
-    leadId: raw.lead_id, idempotencyKey: 'csv_'+raw.lead_id, normalized: n,
+    leadId: raw.lead_id, idempotencyKey: idempotencyKey || ('csv_'+raw.lead_id), normalized: n,
     flags:[...flags], reasons,
     eligibleForEmail: !blocking && !!n.email && !flags.has('incomplete_session'),
   };
@@ -226,7 +227,7 @@ for (const raw of LEADS) {
     }
     const zoho = (!routed.draftEmailRequired) ? { mode:'draft_only', wouldCreateDraft:false, status:'skipped', detail:'Not a fit — no email draft. Qualification summary only.' }
       : (!emailDraft || emailDraft.blocked) ? { mode:'draft_only', wouldCreateDraft:false, status:'blocked', detail:'Draft blocked' }
-      : { mode:'draft_only', wouldCreateDraft:true, status:'dry_run_queued', detail:'JSON draft artifact draft_only; Zoho composer API permission-blocked; never send.' };
+      : { mode:'draft_only', wouldCreateDraft:true, status:'dry_run_queued', detail:'JSON draft artifact ready; native Zoho __email_drafts via shared TS pipeline when ZOHO_ACCESS_TOKEN is live (never send).' };
     const disp = disposition(clean.flags, routed.tier, errors);
     const zoho_qualification = [
       '[MYNTMORE QUALIFICATION — DO NOT SEND]',

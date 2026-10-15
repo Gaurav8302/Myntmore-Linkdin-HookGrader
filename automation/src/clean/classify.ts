@@ -42,6 +42,7 @@ export function createDuplicateIndex(): DuplicateIndex {
 export function classifyLead(
   raw: RawLead,
   duplicates: DuplicateIndex,
+  options?: { idempotencyKey?: string },
 ): CleanResult {
   const normalized = normalizeRawLead(raw);
   const flags = new Set<CleanFlag>();
@@ -122,7 +123,7 @@ export function classifyLead(
 
   return {
     leadId: raw.lead_id,
-    idempotencyKey: csvIdempotencyKey(raw.lead_id),
+    idempotencyKey: options?.idempotencyKey ?? csvIdempotencyKey(raw.lead_id),
     normalized,
     flags: [...flags],
     reasons,

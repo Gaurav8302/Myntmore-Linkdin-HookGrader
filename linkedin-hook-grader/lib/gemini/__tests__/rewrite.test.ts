@@ -1,6 +1,6 @@
 /**
  * Rewrite generation unit tests
- * Schema validation, improvement gating, fallback, and prompt rules.
+ * Schema validation, score-as-feedback acceptance, fallback, and prompt rules.
  * Uses mocks — does not call the real NVIDIA API.
  */
 
@@ -13,6 +13,9 @@ import {
   evaluateRewriteCandidate,
   generateRewrites,
   hasFabricatedAuthority,
+  hasFabricatedMetrics,
+  isRewriteScoreAcceptable,
+  labelAcceptedRewriteReason,
   MAX_REWRITE_GENERATION_ATTEMPTS,
   REWRITE_MAX_CHARS,
 } from '../rewrite'
@@ -25,7 +28,7 @@ vi.mock('../client', () => ({
 import { callNvidiaChat } from '../client'
 
 describe('Gemini Prompt Building', () => {
-  it('builds user prompt with all required context', () => {
+  it('builds user prompt without requiring a higher score', () => {
     const hook = 'I grew ARR to $1M in 12 months'
     const score = 87
     const failedRules = ['No question or curiosity gap detected']
@@ -35,8 +38,16 @@ describe('Gemini Prompt Building', () => {
     expect(prompt).toContain(hook)
     expect(prompt).toContain('87')
     expect(prompt).toContain('No question or curiosity gap detected')
-    expect(prompt).toContain('3 distinct rewrites')
-    expect(prompt).toContain('STRICTLY HIGHER')
+    expect(prompt).toContain('3 distinct rewrite alternatives')
+    expect(prompt).toMatch(/NOT required/i)
+    expect(prompt).not.toContain('STRICTLY HIGHER')
+  })
+
+  it('builds user prompt for high originals without a 90 floor gate', () => {
+    const prompt = buildUserPrompt('A strong hook already', 92, [])
+    expect(prompt).toMatch(/alternative/i)
+    expect(prompt).not.toContain('STRICTLY HIGHER')
+    expect(prompt).not.toMatch(/must score 90/)
   })
 
   it('includes system prompt with all writing rules', () => {
@@ -45,6 +56,8 @@ describe('Gemini Prompt Building', () => {
     expect(SYSTEM_PROMPT).toContain('NO INVENTED NUMBERS')
     expect(SYSTEM_PROMPT).toContain('120 WORDS')
     expect(SYSTEM_PROMPT).toContain('myntmore.com/founder-meeting')
+    expect(SYSTEM_PROMPT).toMatch(/Specificity \(critical/i)
+    expect(SYSTEM_PROMPT).toMatch(/7\+ letter/i)
   })
 
   it('treats first-person authority as optional and forbids score mutation', () => {
@@ -53,7 +66,7 @@ describe('Gemini Prompt Building', () => {
     expect(SYSTEM_PROMPT).toContain('provocative insight')
     expect(SYSTEM_PROMPT).toContain('reader-focused question')
     expect(SYSTEM_PROMPT).toContain('specific pain point')
-    expect(SYSTEM_PROMPT).toContain('concrete recommendation or imperative')
+    expect(SYSTEM_PROMPT).toContain('concrete imperative recommendation')
     expect(SYSTEM_PROMPT).toMatch(/NEVER calculate|must NOT recalculate/i)
     expect(SYSTEM_PROMPT).toMatch(/ONLY when the original hook already supports/i)
 
@@ -163,19 +176,53 @@ describe('Gemini Response Parsing', () => {
   })
 })
 
-describe('evaluateRewriteCandidate (deterministic improvement gate)', () => {
+describe('isRewriteScoreAcceptable (score is feedback, not a gate)', () => {
+  it('original 89; candidate 89 → accept', () => {
+    expect(isRewriteScoreAcceptable(89, 89)).toBe(true)
+  })
+
+  it('original 89; candidate 85 → accept', () => {
+    expect(isRewriteScoreAcceptable(89, 85)).toBe(true)
+  })
+
+  it('original 89; candidate 90 → accept', () => {
+    expect(isRewriteScoreAcceptable(89, 90)).toBe(true)
+  })
+
+  it('original 92; candidate 91 → accept', () => {
+    expect(isRewriteScoreAcceptable(92, 91)).toBe(true)
+  })
+
+  it('original 92; candidate 89 → accept', () => {
+    expect(isRewriteScoreAcceptable(92, 89)).toBe(true)
+  })
+
+  it('labels equal and lower scores honestly without promising improvement', () => {
+    const equal = labelAcceptedRewriteReason(89, 89, 'Same angle, tighter wording')
+    expect(equal).toMatch(/Score 89\/100 \(same score as original\)/)
+    expect(equal).not.toMatch(/Improved score/)
+
+    const lower = labelAcceptedRewriteReason(92, 89, 'Different tone')
+    expect(lower).toMatch(/Score 89\/100 \(-3 vs original\)/)
+
+    const higher = labelAcceptedRewriteReason(89, 90, 'Adds curiosity')
+    expect(higher).toMatch(/Score 90\/100 \(\+1 vs original\)/)
+  })
+})
+
+describe('evaluateRewriteCandidate (quality gates only)', () => {
   const weakOriginal =
     'Random thoughts on leadership trends across enterprise software markets today without a clear ask.'
   const weakScore = scoreHook(weakOriginal).score
 
   const improvedA =
-    'Why do most leadership posts get ignored? Steal this 3-line LinkedIn hook playbook for your next B2B post.'
+    'Why do most leadership posts get ignored? Steal this LinkedIn hook playbook for your next B2B post.'
   const improvedB =
-    'How do founders lose attention in 2 seconds? Learn this LinkedIn hook playbook for your next post.'
+    'How do founders lose attention so quickly? Learn this LinkedIn hook playbook for your next post.'
   const improvedC =
-    'What makes a LinkedIn hook stop the scroll in 2024? Steal this playbook for your next B2B update.'
+    'What makes a LinkedIn hook stop the scroll today? Steal this playbook for your next B2B update.'
 
-  it('accepts candidates that score strictly higher', () => {
+  it('accepts candidates regardless of score delta when otherwise valid', () => {
     expect(weakScore).toBeLessThan(50)
     for (const candidate of [improvedA, improvedB, improvedC]) {
       const verdict = evaluateRewriteCandidate(weakOriginal, candidate, weakScore)
@@ -184,20 +231,50 @@ describe('evaluateRewriteCandidate (deterministic improvement gate)', () => {
     }
   })
 
-  it('rejects equal scores', () => {
-    const verdict = evaluateRewriteCandidate(weakOriginal, weakOriginal, weakScore)
-    expect(verdict.ok).toBe(false)
-    expect(verdict.reason).toBe('score_not_higher')
+  it('original 89 / candidate 89: accept when distinct and valid', () => {
+    const original =
+      'Why do founders lose the scroll? Steal this LinkedIn hook playbook for your next B2B post today.'
+    const candidate =
+      'How do founders lose the scroll? Steal this LinkedIn hook playbook for your next B2B post today.'
+    const originalScore = scoreHook(original).score
+    const candidateScore = scoreHook(candidate).score
+    // Scores may match or differ slightly; acceptance must not require higher.
+    expect(isRewriteScoreAcceptable(originalScore, candidateScore)).toBe(true)
+    const verdict = evaluateRewriteCandidate(original, candidate, originalScore)
+    expect(verdict.ok).toBe(true)
   })
 
-  it('rejects lower scores', () => {
+  it('original 89 / candidate 85: accept if otherwise valid', () => {
+    const original =
+      'Why do founders lose the scroll? Steal this LinkedIn hook playbook for your next B2B post today.'
+    const originalScore = scoreHook(original).score
+    const weaker =
+      'Founders often lose attention on LinkedIn. Here is a clearer way to open your next post.'
+    const weakerScore = scoreHook(weaker).score
+    expect(weakerScore).toBeLessThanOrEqual(originalScore)
+    const verdict = evaluateRewriteCandidate(original, weaker, originalScore)
+    expect(verdict.ok).toBe(true)
+    expect(verdict.candidateScore).toBe(weakerScore)
+  })
+
+  it('rejects identical candidates even when scores would otherwise pass', () => {
+    const strong =
+      'How do most founders still get ignored on LinkedIn? Steal this hook playbook for your next B2B post.'
+    const strongScore = scoreHook(strong).score
+    const verdict = evaluateRewriteCandidate(strong, strong, strongScore)
+    expect(verdict.ok).toBe(false)
+    expect(verdict.reason).toBe('identical')
+    expect(scoreHook(strong).score).toBe(strongScore)
+  })
+
+  it('accepts a lower-scoring distinct alternative from a strong original', () => {
     const strong =
       "How I've helped 40 founders book meetings in 90 days: steal this LinkedIn playbook for your next post."
     const strongScore = scoreHook(strong).score
-    const verdict = evaluateRewriteCandidate(strong, weakOriginal, strongScore)
-    expect(verdict.ok).toBe(false)
-    expect(verdict.reason).toBe('score_not_higher')
-    expect(verdict.candidateScore).toBeLessThan(strongScore)
+    expect(strongScore).toBeGreaterThanOrEqual(90)
+    const reverse = evaluateRewriteCandidate(strong, weakOriginal, strongScore)
+    expect(reverse.ok).toBe(true)
+    expect(reverse.candidateScore).toBeLessThan(strongScore)
   })
 
   it('rejects character-limit violations', () => {
@@ -218,19 +295,33 @@ describe('evaluateRewriteCandidate (deterministic improvement gate)', () => {
     expect(verdict.reason).toBe('fabricated_authority')
   })
 
-  it('for an 86-class original, only candidates at 87+ pass', () => {
-    // Construct an original at 83 (no authority); improved must reach 91 with truthful authority
-    // or stay non-authority but somehow higher — with current weights max without auth is 83.
+  it('rejects invented metrics not present in the original', () => {
     const original =
-      'How do most founders still get ignored on LinkedIn? Steal this 3-line hook playbook for your next B2B post.'
+      'Why do founders lose the scroll? Steal this LinkedIn hook playbook for your next B2B post today.'
+    expect(hasFabricatedMetrics(original, 'Losing the scroll? Here is how 92 founders improved posts.')).toBe(
+      true,
+    )
+    const verdict = evaluateRewriteCandidate(
+      original,
+      'Losing the scroll? Here is how 92 founders improved their B2B posts.',
+      scoreHook(original).score,
+    )
+    expect(verdict.ok).toBe(false)
+    expect(verdict.reason).toBe('fabricated_metrics')
+  })
+
+  it('for a 92 original, accepts a distinct alternative even if score is lower', () => {
+    const original =
+      'How do most founders still get ignored on LinkedIn? Steal this hook playbook for your next B2B post.'
     const originalScore = scoreHook(original).score
     expect(originalScore).toBe(92)
 
-    const equalish =
-      'How do B2B founders still get ignored on LinkedIn? Steal this 3-line hook playbook for your next post.'
-    expect(evaluateRewriteCandidate(original, equalish, originalScore).ok).toBe(false)
+    const alternative =
+      'Why do B2B founders still get ignored on LinkedIn? Steal this hook playbook for your next post.'
+    const verdict = evaluateRewriteCandidate(original, alternative, originalScore)
+    expect(verdict.ok).toBe(true)
+    expect(scoreHook(original).score).toBe(92)
 
-    // Cannot invent authority from a non-authority original
     const withInventedAuth =
       "How I've helped 40 founders book meetings in 90 days: steal this LinkedIn playbook for your next post."
     expect(evaluateRewriteCandidate(original, withInventedAuth, originalScore).reason).toBe(
@@ -239,9 +330,9 @@ describe('evaluateRewriteCandidate (deterministic improvement gate)', () => {
   })
 })
 
-describe('generateRewrites improvement + fallback', () => {
+describe('generateRewrites acceptance + fallback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   const weakOriginal =
@@ -253,11 +344,11 @@ describe('generateRewrites improvement + fallback', () => {
     })
   }
 
-  it('returns three improved rewrites when all score higher', async () => {
+  it('returns three rewrites when all are valid (score may be equal)', async () => {
     const improved = [
-      'Why do most leadership posts get ignored? Steal this 3-line LinkedIn hook playbook for your next B2B post.',
-      'How do founders lose attention in 2 seconds? Learn this LinkedIn hook playbook for your next post.',
-      'What makes a LinkedIn hook stop the scroll in 2024? Steal this playbook for your next B2B update.',
+      'Why do most leadership posts get ignored? Steal this LinkedIn hook playbook for your next B2B post.',
+      'How do founders lose attention so quickly? Learn this LinkedIn hook playbook for your next post.',
+      'What makes a LinkedIn hook stop the scroll today? Steal this playbook for your next B2B update.',
     ] as [string, string, string]
 
     vi.mocked(callNvidiaChat).mockResolvedValueOnce(payload(improved))
@@ -270,24 +361,48 @@ describe('generateRewrites improvement + fallback', () => {
     expect(result.fallback).toBe(false)
     expect(result.rewrites).toHaveLength(3)
     const scores = result.rewrites.map((r) => scoreHook(r.hook).score)
-    // Representative weak original (22) → three improved scores (92, 92, 92)
     expect(originalScore).toBe(22)
-    expect(scores).toEqual([92, 92, 92])
-    for (const s of scores) {
-      expect(s).toBeGreaterThan(originalScore)
-    }
+    expect(scores.every((s) => s >= originalScore)).toBe(true)
+    expect(result.rewrites[0].reason).toMatch(/Score \d+\/100/)
+    expect(typeof result.rewrites[0].score).toBe('number')
+    expect(result.rewrites[0].scoreDelta).toBe(
+      (result.rewrites[0].score as number) - originalScore,
+    )
+    const unique = new Set(result.rewrites.map((r) => r.hook))
+    expect(unique.size).toBe(3)
   })
 
-  it('retries and falls back when candidates never beat the original', async () => {
+  it('displays three unique equal-scoring alternatives', async () => {
     const original =
-      "How I've helped 40 founders book meetings in 90 days: steal this LinkedIn playbook for your next post."
+      'How do most founders still get ignored on LinkedIn? Steal this hook playbook for your next B2B post.'
     const originalScore = scoreHook(original).score
-    expect(originalScore).toBe(100)
+    expect(originalScore).toBe(92)
 
-    // Equal / worse / fabricated — none valid improvements for a max-scoring original
+    const alternatives = [
+      'Why do B2B founders still get ignored on LinkedIn? Steal this hook playbook for your next post.',
+      'What keeps founders invisible on LinkedIn today? Steal this hook playbook for your next B2B update.',
+      'How do founders lose the scroll in seconds? Steal this LinkedIn hook playbook for your next post.',
+    ] as [string, string, string]
+
+    vi.mocked(callNvidiaChat).mockResolvedValueOnce(payload(alternatives))
+
+    const result = await generateRewrites(original, originalScore, [])
+    expect(result.fallback).toBe(false)
+    expect(result.rewrites).toHaveLength(3)
+    for (const r of result.rewrites) {
+      expect(r.reason).toMatch(/Score \d+\/100/)
+      expect(r.reason).not.toMatch(/Improved score/)
+    }
+    expect(scoreHook(original).score).toBe(92)
+  })
+
+  it('rejects duplicates, originals, and fabricated authority, then explains on retry exhaustion', async () => {
+    const original = weakOriginal
+    const originalScore = scoreHook(original).score
+
     const badBatch = payload([
       original,
-      'Random thoughts on leadership.',
+      original,
       "I've helped 999 unicorns raise $50M overnight with this secret.",
     ])
 
@@ -296,21 +411,20 @@ describe('generateRewrites improvement + fallback', () => {
     const result = await generateRewrites(original, originalScore, [])
 
     expect(result.fallback).toBe(true)
-    expect(result.fallbackReason).toBe('NO_IMPROVED_REWRITE')
-    expect(result.rewrites).toHaveLength(3)
-    expect(result.rewrites[0].hook).toBe(original)
-    expect(result.rewrites[0].reason).toMatch(/Could not generate a higher-scoring rewrite/i)
+    expect(result.fallbackReason).toBe('INSUFFICIENT_ALTERNATIVES')
+    expect(result.rewrites).toEqual([])
     expect(callNvidiaChat).toHaveBeenCalledTimes(MAX_REWRITE_GENERATION_ATTEMPTS)
+    expect(scoreHook(original).score).toBe(originalScore)
   })
 
-  it('accumulates improved candidates across retries until three accept', async () => {
+  it('accumulates valid candidates across retries until three accept', async () => {
     const originalScore = scoreHook(weakOriginal).score
     const good1 =
-      'Why do most leadership posts get ignored? Steal this 3-line LinkedIn hook playbook for your next B2B post.'
+      'Why do most leadership posts get ignored? Steal this LinkedIn hook playbook for your next B2B post.'
     const good2 =
-      'How do founders lose attention in 2 seconds? Learn this LinkedIn hook playbook for your next post.'
+      'How do founders lose attention so quickly? Learn this LinkedIn hook playbook for your next post.'
     const good3 =
-      'What makes a LinkedIn hook stop the scroll in 2024? Steal this playbook for your next B2B update.'
+      'What makes a LinkedIn hook stop the scroll today? Steal this playbook for your next B2B update.'
 
     vi.mocked(callNvidiaChat)
       .mockResolvedValueOnce(payload([good1, weakOriginal, 'Too short']))
@@ -321,27 +435,39 @@ describe('generateRewrites improvement + fallback', () => {
 
     expect(result.fallback).toBe(false)
     expect(result.rewrites).toHaveLength(3)
-    const scores = result.rewrites.map((r) => scoreHook(r.hook).score)
-    expect(scores.every((s) => s > originalScore)).toBe(true)
+  })
+
+  it('returns partial alternatives without filling slots with the original', async () => {
+    const good1 =
+      'Why do most leadership posts get ignored? Steal this LinkedIn hook playbook for your next B2B post.'
+    vi.mocked(callNvidiaChat).mockResolvedValue(
+      payload([good1, weakOriginal, weakOriginal]),
+    )
+
+    const originalScore = scoreHook(weakOriginal).score
+    const result = await generateRewrites(weakOriginal, originalScore, [])
+
+    expect(result.fallback).toBe(true)
+    expect(result.fallbackReason).toBe('INSUFFICIENT_ALTERNATIVES')
+    expect(result.rewrites).toHaveLength(1)
+    expect(result.rewrites[0].hook).toBe(good1)
+    expect(result.rewrites.every((r) => r.hook !== weakOriginal)).toBe(true)
   })
 })
 
 describe('Fallback Result Creation', () => {
-  it('creates fallback with original hook echoed', () => {
-    const originalHook = 'I grew my ARR to $1M'
-    const result = createFallbackResult(originalHook, 'NVIDIA_TIMEOUT')
+  it('explains the limitation without echoing the original three times', () => {
+    const result = createFallbackResult('NVIDIA_TIMEOUT')
 
     expect(result.fallback).toBe(true)
     expect(result.fallbackReason).toBe('NVIDIA_TIMEOUT')
-    expect(result.rewrites).toHaveLength(3)
-    expect(result.rewrites[0].hook).toBe(originalHook)
-    expect(result.rewrites[0].reason).toBe('AI unavailable — original hook shown')
+    expect(result.rewrites).toEqual([])
   })
 
-  it('uses clear copy for NO_IMPROVED_REWRITE', () => {
-    const result = createFallbackResult('hook', 'NO_IMPROVED_REWRITE')
+  it('maps deprecated NO_IMPROVED_REWRITE without using it as a user score gate', () => {
+    const result = createFallbackResult('NO_IMPROVED_REWRITE')
     expect(result.fallbackReason).toBe('NO_IMPROVED_REWRITE')
-    expect(result.rewrites[0].reason).toMatch(/Could not generate a higher-scoring rewrite/i)
+    expect(result.rewrites).toEqual([])
   })
 
   it('uses correct fallback reason types', () => {
@@ -350,24 +476,28 @@ describe('Fallback Result Creation', () => {
       'NVIDIA_SCHEMA_ERROR',
       'NVIDIA_RATE_LIMIT',
       'NVIDIA_UNAVAILABLE',
+      'INSUFFICIENT_ALTERNATIVES',
       'NO_IMPROVED_REWRITE',
     ]
 
     for (const reason of reasons) {
-      const result = createFallbackResult('test hook', reason)
+      const result = createFallbackResult(reason)
       expect(result.fallbackReason).toBe(reason)
+      expect(result.rewrites).toEqual([])
     }
   })
 })
 
 describe('Gemini Integration Types', () => {
-  it('validates Rewrite type structure', () => {
+  it('validates Rewrite type structure with optional score feedback', () => {
     const rewrite: Rewrite = {
       hook: 'Test hook',
       reason: 'Test reason',
+      score: 89,
+      scoreDelta: 0,
     }
     expect(rewrite.hook).toBe('Test hook')
-    expect(rewrite.reason).toBe('Test reason')
+    expect(rewrite.scoreDelta).toBe(0)
   })
 
   it('validates FallbackReason enum values', () => {
@@ -376,8 +506,9 @@ describe('Gemini Integration Types', () => {
       'NVIDIA_SCHEMA_ERROR',
       'NVIDIA_RATE_LIMIT',
       'NVIDIA_UNAVAILABLE',
+      'INSUFFICIENT_ALTERNATIVES',
       'NO_IMPROVED_REWRITE',
     ]
-    expect(reasons).toHaveLength(5)
+    expect(reasons).toHaveLength(6)
   })
 })

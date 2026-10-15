@@ -6,7 +6,7 @@ interface HookGraderResultsProps {
   score: number
   failedRules: string[]
   passedRules: string[]
-  rewrites: Array<{ hook: string; reason: string }>
+  rewrites: Array<{ hook: string; reason: string; score?: number; scoreDelta?: number }>
   fallback: boolean
   fallbackReason?: string
   onCopy: (text: string) => void
@@ -31,13 +31,17 @@ export function HookGraderResults({
     <div className="space-y-6">
       {fallback && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
-          <p className="font-semibold">AI rewrites unavailable</p>
-          <p className="mt-1">
-            {fallbackReason
-              ? `Provider reported: ${fallbackReason}. Showing your original hook as a labelled fallback.`
-              : 'Generation failed. Showing your original hook as a labelled fallback.'}
+          <p className="font-semibold">
+            {rewrites.length > 0 ? 'Fewer than three rewrite alternatives' : 'Rewrite alternatives unavailable'}
           </p>
-          <p className="mt-1">Your deterministic score was still saved with this session.</p>
+          <p className="mt-1">
+            {fallbackReason === 'INSUFFICIENT_ALTERNATIVES' || fallbackReason === 'NO_IMPROVED_REWRITE'
+              ? 'Could not generate three valid alternatives within the retry limit. Showing the valid ones we have. Your original score was not changed, and the original hook was not copied to fill empty slots.'
+              : fallbackReason
+                ? `Provider reported: ${fallbackReason}. Showing any valid alternatives we have. The original hook was not copied as a rewrite.`
+                : 'Generation failed. The original hook was not copied as a rewrite.'}
+          </p>
+          <p className="mt-1">Your deterministic score was still saved with this session and was not changed.</p>
         </div>
       )}
 
@@ -108,24 +112,29 @@ export function HookGraderResults({
         </details>
       )}
 
-      <div>
-        <h3 className="text-xl font-bold tracking-tight">Three rewrite options</h3>
-        <p className="mt-1 text-sm text-myntmore-body">
-          Pick the angle that sounds most like you, then edit before posting.
-        </p>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          {rewrites.map((rewrite, index) => (
-            <RewriteCard
-              key={`${index}-${rewrite.hook.slice(0, 24)}`}
-              index={index + 1}
-              hook={rewrite.hook}
-              reason={rewrite.reason}
-              onCopy={onCopy}
-              isFallback={fallback}
-            />
-          ))}
+      {rewrites.length > 0 && (
+        <div>
+          <h3 className="text-xl font-bold tracking-tight">Rewrite alternatives</h3>
+          <p className="mt-1 text-sm text-myntmore-body">
+            Choose by tone or angle. Each card shows its own deterministic score; equal or lower scores are still
+            useful alternatives, not failures.
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            {rewrites.map((rewrite, index) => (
+              <RewriteCard
+                key={`${index}-${rewrite.hook.slice(0, 24)}`}
+                index={index + 1}
+                hook={rewrite.hook}
+                reason={rewrite.reason}
+                score={rewrite.score}
+                scoreDelta={rewrite.scoreDelta}
+                onCopy={onCopy}
+                isFallback={fallback}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mm-panel flex flex-col items-start justify-between gap-4 p-6 md:flex-row md:items-center">
         <div>

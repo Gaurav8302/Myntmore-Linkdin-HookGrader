@@ -18,7 +18,7 @@ type ResultsData = {
   score: number
   failedRules: string[]
   passedRules: string[]
-  rewrites: Array<{ hook: string; reason: string }>
+  rewrites: Array<{ hook: string; reason: string; score?: number; scoreDelta?: number }>
   fallback: boolean
   fallbackReason?: string
 }
@@ -88,7 +88,7 @@ export default function Home() {
                   <h1 className="text-3xl font-black tracking-tight md:text-4xl">Grade your hook</h1>
                   <p className="mt-2 text-myntmore-body">
                     Add your details, paste the first two lines of your LinkedIn post, and get a
-                    rule-based score plus three rewrite options.
+                    rule-based score plus three rewrite alternatives.
                   </p>
                 </div>
                 <div className="mm-panel p-6 md:p-8">
@@ -102,7 +102,7 @@ export default function Home() {
                 <div className="mb-8 text-center">
                   <h1 className="text-3xl font-black tracking-tight md:text-4xl">Grading your hook</h1>
                   <p className="mt-2 text-myntmore-body">
-                    Running the six scoring rules, then generating three rewrite options.
+                    Running the six scoring rules, then generating three rewrite alternatives.
                   </p>
                 </div>
                 <div className="mm-panel p-6 md:p-8">
@@ -192,7 +192,7 @@ function Landing({ onGrade }: { onGrade: () => void }) {
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-myntmore-body md:text-xl">
             Most readers decide whether to keep scrolling in the first two lines. Get a transparent,
-            rule-based score and three sharper rewrite options you can paste and edit.
+            rule-based score and three rewrite alternatives you can paste and edit.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <button type="button" onClick={onGrade} className="mm-btn-primary">
@@ -225,7 +225,7 @@ function Landing({ onGrade }: { onGrade: () => void }) {
             />
             <StepCard
               n="03"
-              title="Compare three rewrites"
+              title="Compare three alternatives"
               body="Review three AI-generated alternatives with short reasons, then copy the one that fits your voice."
             />
           </div>

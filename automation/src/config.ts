@@ -11,6 +11,18 @@ export interface AppConfig {
   supabaseServiceRoleKey: string | undefined;
   supabasePublishableKey: string | undefined;
   zohoSendMode: "draft";
+  /** India default; overridden by token response api_domain when refreshing. */
+  zohoApiDomain: string;
+  /** Zoho Accounts host for OAuth (India: https://accounts.zoho.in). */
+  zohoAccountsUrl: string;
+  zohoClientId: string | undefined;
+  zohoClientSecret: string | undefined;
+  zohoRefreshToken: string | undefined;
+  /** Short-lived; prefer refresh-token flow. */
+  zohoAccessToken: string | undefined;
+  /** Unix seconds; used to avoid refreshing on every lead. */
+  zohoAccessTokenExpiresAt: number | undefined;
+  zohoFromEmail: string | undefined;
   pipelineMode: "dry_run" | "live";
   leadsCsvPath: string;
   founderMeetingUrl: string;
@@ -71,6 +83,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       undefined,
     zohoSendMode: requireDraftOnly(env.ZOHO_SEND_MODE),
+    zohoApiDomain: (
+      env.ZOHO_API_DOMAIN || "https://www.zohoapis.in"
+    ).replace(/\/+$/, ""),
+    zohoAccountsUrl: (
+      env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.in"
+    ).replace(/\/+$/, ""),
+    zohoClientId: env.ZOHO_CLIENT_ID?.trim() || undefined,
+    zohoClientSecret: env.ZOHO_CLIENT_SECRET?.trim() || undefined,
+    zohoRefreshToken: env.ZOHO_REFRESH_TOKEN?.trim() || undefined,
+    zohoAccessToken: env.ZOHO_ACCESS_TOKEN?.trim() || undefined,
+    zohoAccessTokenExpiresAt: (() => {
+      const raw = env.ZOHO_ACCESS_TOKEN_EXPIRES_AT?.trim();
+      if (!raw) return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+    })(),
+    zohoFromEmail: env.ZOHO_FROM_EMAIL?.trim() || undefined,
     pipelineMode,
     leadsCsvPath: env.LEADS_CSV_PATH
       ? path.resolve(process.cwd(), env.LEADS_CSV_PATH)

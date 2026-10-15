@@ -9,6 +9,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "process:csv": "tsx src/cli.ts process-csv",
+    "zoho:draft": "tsx src/cli-zoho-draft.ts",
+    "process:incoming": "tsx src/cli-process-incoming.ts",
+    "process:incoming:server": "tsx src/http-incoming-server.ts",
     "print:n8n-ingest-url": "tsx scripts/print-n8n-ingest-url.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

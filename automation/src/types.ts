@@ -164,8 +164,16 @@ export interface ProcessedLead {
   zoho: {
     mode: "draft_only";
     wouldCreateDraft: boolean;
-    status: "skipped" | "dry_run_queued" | "created" | "failed" | "blocked";
+    status:
+      | "skipped"
+      | "dry_run_queued"
+      | "created"
+      | "verified"
+      | "failed"
+      | "blocked";
     detail: string;
+    zohoLeadId?: string | null;
+    draftId?: string | null;
   };
   persistence: {
     status: "dry_run" | "pending" | "upserted" | "failed";

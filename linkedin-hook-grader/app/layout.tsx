@@ -11,11 +11,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'LinkedIn Hook Grader | Myntmore',
   description:
-    'Grade the first two lines of your LinkedIn post with a rule-based score and get three improved rewrite alternatives.',
+    'Grade the first two lines of your LinkedIn post with a rule-based score and get three rewrite alternatives.',
   openGraph: {
     title: 'LinkedIn Hook Grader | Myntmore',
     description:
-      'Grade the first two lines of your LinkedIn post with a rule-based score and get three improved rewrite alternatives.',
+      'Grade the first two lines of your LinkedIn post with a rule-based score and get three rewrite alternatives.',
     type: 'website',
   },
 }

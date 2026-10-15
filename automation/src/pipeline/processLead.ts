@@ -78,7 +78,7 @@ export async function processLead(
       draftArtifactId: draftArtifact?.draft_id ?? null,
     });
 
-    // Prefer Lead Description qualification summary over fake email-composer drafts.
+    // Live Zoho: native email draft is primary; Supabase JSON artifact remains audit/fallback.
     if (options.zoho && options.supabase.mode === "live" && clean.normalized.email) {
       const summary = buildZohoQualificationSummary({
         qualification,
@@ -86,17 +86,34 @@ export async function processLead(
         route,
         draftArtifactId: draftArtifact?.draft_id ?? null,
       });
+
+      const hasNativeDraft =
+        zoho.wouldCreateDraft &&
+        !!emailDraft &&
+        !emailDraft.blocked;
+
       const created = await createZohoDraft(options.zoho, {
         leadId: raw.lead_id,
         email: clean.normalized.email,
         fullName: clean.normalized.fullName,
         company: clean.normalized.company,
-        subject: `[QUAL] ${raw.lead_id} ${route.tier}`,
-        body: summary,
+        subject: hasNativeDraft
+          ? emailDraft!.subject
+          : `[QUAL] ${raw.lead_id} ${route.tier}`,
+        body: hasNativeDraft ? emailDraft!.body : summary,
         idempotencyKey: clean.idempotencyKey,
-        mode: "qualification_description",
+        mode: hasNativeDraft ? "native_email_draft" : "qualification_description",
+        qualificationSummary: summary,
       });
-      zoho = created.result;
+      zoho = {
+        ...created.result,
+        zohoLeadId: created.zohoLeadId,
+        draftId: created.draftId,
+        detail:
+          created.zohoLeadId || created.draftId
+            ? `${created.result.detail} [zoho_lead=${created.zohoLeadId ?? "none"}; draft_id=${created.draftId ?? "none"}]`
+            : created.result.detail,
+      };
       errors.push(...created.errors);
     }
 

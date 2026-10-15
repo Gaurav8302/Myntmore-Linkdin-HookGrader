@@ -163,13 +163,9 @@ describe('POST /api/grade-hook', () => {
     expect(response.status).toBe(200)
   })
 
-  it('returns fallback=true when NVIDIA fails', async () => {
+  it('returns fallback=true when NVIDIA fails without echoing the original as rewrites', async () => {
     vi.mocked(generateRewrites).mockResolvedValue({
-      rewrites: [
-        { hook: validRequest.hook, reason: 'AI unavailable — original hook shown' },
-        { hook: validRequest.hook, reason: 'AI unavailable — original hook shown' },
-        { hook: validRequest.hook, reason: 'AI unavailable — original hook shown' },
-      ],
+      rewrites: [],
       fallback: true,
       fallbackReason: 'NVIDIA_TIMEOUT',
     })
@@ -181,7 +177,7 @@ describe('POST /api/grade-hook', () => {
     const data = await response.json()
     expect(data.fallback).toBe(true)
     expect(data.fallbackReason).toBe('NVIDIA_TIMEOUT')
-    expect(data.rewrites[0].hook).toBe(validRequest.hook)
+    expect(data.rewrites).toEqual([])
   })
 
   it('returns 500 when Supabase insert fails', async () => {

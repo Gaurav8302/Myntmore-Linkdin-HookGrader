@@ -128,6 +128,8 @@ export const SERVICE_SIGNALS: ServiceSignalDef[] = [
       /\bposting rhythm\b/i,
       /\bauthority (on linkedin|in your space)\b/i,
       /\binbound (finds|tracking)\b/i,
+      /\blinkedin hook\b/i,
+      /\bhook grader\b/i,
     ],
   },
   {
@@ -156,4 +158,6 @@ export const TOOL_SERVICE_PRIOR: Record<string, MyntmoreService> = {
   case_study_generator: "ai_lead_generation",
   icp_builder: "icp_mapping",
   lead_magnet_ideas: "ai_lead_generation",
+  /** Parallel source into the shared pipeline (soft prior only). */
+  linkedin_hook_grader: "personal_branding",
 };

@@ -9,6 +9,7 @@ import { scoreHook } from '@/lib/scoring'
 import { generateRewrites, type RewriteResult } from '@/lib/gemini/rewrite'
 import { insertSessionAtomic } from '@/lib/supabase/queries'
 import { buildWebhookPayload } from '@/lib/webhook/make'
+import { processOutbox } from '@/lib/webhook/outbox'
 import { randomUUID } from 'crypto'
 
 // Request validation schema
@@ -49,8 +50,21 @@ export async function POST(request: NextRequest) {
     // Step 2: Generate rewrites via NVIDIA (score remains deterministic)
     const rewriteResult = await generateRewrites(hook, scoreResult.score, scoreResult.failedRules)
 
-    // Step 3: Prepare rewrites for storage
+    // Step 3: Prepare rewrites for storage / response.
+    // Do not echo the original hook as fake rewrite options when generation fails.
     const rewrites = rewriteResult.rewrites
+    const emptySlotReason =
+      rewriteResult.fallbackReason === 'INSUFFICIENT_ALTERNATIVES' ||
+      rewriteResult.fallbackReason === 'NO_IMPROVED_REWRITE'
+        ? 'No valid rewrite alternative generated within retry limit'
+        : 'Rewrite unavailable'
+    const rewriteSlot = (index: number) => ({
+      hook: rewrites[index]?.hook ?? '',
+      reason: rewrites[index]?.reason ?? emptySlotReason,
+    })
+    const slot1 = rewriteSlot(0)
+    const slot2 = rewriteSlot(1)
+    const slot3 = rewriteSlot(2)
 
     // Step 4: Build webhook payload for outbox.
     // session_id is set by insert_hook_grader_session RPC to the canonical row id.
@@ -85,12 +99,12 @@ export async function POST(request: NextRequest) {
       score: scoreResult.score,
       failed_rules: scoreResult.failedRules,
       passed_rules: scoreResult.passedRules,
-      rewrite_1: rewrites[0].hook,
-      rewrite_1_reason: rewrites[0].reason,
-      rewrite_2: rewrites[1].hook,
-      rewrite_2_reason: rewrites[1].reason,
-      rewrite_3: rewrites[2].hook,
-      rewrite_3_reason: rewrites[2].reason,
+      rewrite_1: slot1.hook,
+      rewrite_1_reason: slot1.reason,
+      rewrite_2: slot2.hook,
+      rewrite_2_reason: slot2.reason,
+      rewrite_3: slot3.hook,
+      rewrite_3_reason: slot3.reason,
       ip_hash: webhookPayload.metadata.ip_hash as string | null,
       user_agent: webhookPayload.metadata.user_agent as string | null,
       processing_ms: webhookPayload.metadata.processing_ms as number,
@@ -99,13 +113,24 @@ export async function POST(request: NextRequest) {
     })
     const sessionId = inserted.id
 
+    // Best-effort immediate outbox flush so delivery does not wait solely on cron.
+    // Failures are non-blocking; cron remains the durable retry path.
+    void processOutbox().catch((err) => {
+      console.error('Immediate outbox flush failed:', err instanceof Error ? err.message : err)
+    })
+
     // Step 6: Return response
     const response = {
       sessionId,
       score: scoreResult.score,
       failedRules: scoreResult.failedRules,
       passedRules: scoreResult.passedRules,
-      rewrites: rewrites.map(r => ({ hook: r.hook, reason: r.reason })),
+      rewrites: rewrites.map(r => ({
+        hook: r.hook,
+        reason: r.reason,
+        score: r.score,
+        scoreDelta: r.scoreDelta,
+      })),
       fallback: rewriteResult.fallback,
       fallbackReason: rewriteResult.fallbackReason,
     }

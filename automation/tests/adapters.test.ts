@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { persistProcessedLead, toLeadRow } from "../src/adapters/supabase.js";
-import { createZohoDraft, planZohoDraft } from "../src/adapters/zoho.js";
+import {
+  createZohoDraft,
+  draftSourceKey,
+  planZohoDraft,
+} from "../src/adapters/zoho.js";
 import { loadConfig } from "../src/config.js";
 import { ProcessedLead } from "../src/types.js";
 
@@ -187,11 +191,264 @@ describe("Zoho adapter (draft-only)", () => {
     ).toBe("dry_run_queued");
   });
 
-  it("has no send-email export and refuses live create on API error", async () => {
+  it("has no send-email export", async () => {
     expect("sendEmail" in (await import("../src/adapters/zoho.js"))).toBe(false);
-    const fetchImpl = vi.fn(async () =>
-      new Response("denied", { status: 401 }),
-    ) as unknown as typeof fetch;
+  });
+
+  it("creates a native email draft associated with the CRM lead", async () => {
+    const draftId = "draft_abc";
+    const zohoLeadId = "1445645000000549005";
+    const source = draftSourceKey("csv_L01");
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/Leads/search")) {
+        return new Response(JSON.stringify({ data: [{ id: zohoLeadId }] }), { status: 200 });
+      }
+      if (u.includes("/__email_drafts") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify({ __email_drafts: [] }), { status: 200 });
+      }
+      if (u.includes("/from_addresses")) {
+        return new Response(
+          JSON.stringify({
+            from_addresses: [{ email: "sender@myntmore.example", type: "primary" }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.includes("/__email_drafts") && init?.method === "POST") {
+        const body = String(init.body);
+        expect(body).toContain("sender@myntmore.example");
+        expect(body).toContain(source);
+        expect(body).not.toMatch(/send_mail|sendMail/i);
+        return new Response(
+          JSON.stringify({
+            __email_drafts: [{ status: "success", details: { id: draftId } }],
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    // Second list after create should show the draft (visibility)
+    let listCalls = 0;
+    const fetchWithVisibility = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/__email_drafts") && (!init?.method || init.method === "GET")) {
+        listCalls += 1;
+        if (listCalls >= 2) {
+          return new Response(
+            JSON.stringify({ __email_drafts: [{ id: draftId, source, subject: "Hi" }] }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ __email_drafts: [] }), { status: 200 });
+      }
+      return fetchImpl(url, init);
+    }) as unknown as typeof fetch;
+
+    const { result, errors, draftId: createdId, zohoLeadId: resolved } = await createZohoDraft(
+      {
+        apiDomain: "https://www.zohoapis.com",
+        accessToken: "x",
+        fetchImpl: fetchWithVisibility,
+      },
+      {
+        leadId: "L01",
+        email: "a@b.com",
+        fullName: "A",
+        company: "C",
+        subject: "Hi",
+        body: "Body myntmore.com/founder-meeting",
+        idempotencyKey: "csv_L01",
+        mode: "native_email_draft",
+      },
+    );
+
+    expect(result.status).toBe("verified");
+    expect(result.mode).toBe("draft_only");
+    expect(createdId).toBe(draftId);
+    expect(resolved).toBe(zohoLeadId);
+    expect(errors).toEqual([]);
+    expect(result.detail).toMatch(/visible/i);
+  });
+
+  it("treats empty Zoho Lead search body as no match (204/empty JSON)", async () => {
+    const zohoLeadId = "1445645000000549005";
+    const draftId = "draft_after_empty_search";
+    const source = draftSourceKey("csv_empty_search");
+    let listCalls = 0;
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/Leads/search")) {
+        // Zoho often returns an empty body for no matches (undici rejects status 204 here).
+        return new Response("", { status: 200 });
+      }
+      if (u.includes("/Leads") && init?.method === "POST" && !u.includes("__email_drafts")) {
+        return new Response(
+          JSON.stringify({ data: [{ details: { id: zohoLeadId } }] }),
+          { status: 201 },
+        );
+      }
+      if (u.includes("/from_addresses")) {
+        return new Response(
+          JSON.stringify({ from_addresses: [{ email: "sender@example.com", type: "primary" }] }),
+          { status: 200 },
+        );
+      }
+      if (u.includes("/__email_drafts") && (!init?.method || init.method === "GET")) {
+        listCalls += 1;
+        if (listCalls >= 2) {
+          return new Response(
+            JSON.stringify({ __email_drafts: [{ id: draftId, source }] }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ __email_drafts: [] }), { status: 200 });
+      }
+      if (u.includes("/__email_drafts") && init?.method === "POST") {
+        return new Response(
+          JSON.stringify({
+            __email_drafts: [{ status: "success", details: { id: draftId } }],
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const { result, draftId: createdId, zohoLeadId: resolved } = await createZohoDraft(
+      { apiDomain: "https://www.zohoapis.in", accessToken: "x", fetchImpl },
+      {
+        leadId: "L99",
+        email: "new@example.com",
+        fullName: "New Lead",
+        company: null,
+        subject: "Hi",
+        body: "Body myntmore.com/founder-meeting",
+        idempotencyKey: "csv_empty_search",
+      },
+    );
+    expect(resolved).toBe(zohoLeadId);
+    expect(createdId).toBe(draftId);
+    expect(result.status).toBe("verified");
+  });
+
+  it("is idempotent when a draft with the same source already exists", async () => {
+    const zohoLeadId = "1445645000000549005";
+    const source = draftSourceKey("csv_L01");
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/Leads/search")) {
+        return new Response(JSON.stringify({ data: [{ id: zohoLeadId }] }), { status: 200 });
+      }
+      if (u.includes("/__email_drafts") && (!init?.method || init.method === "GET")) {
+        return new Response(
+          JSON.stringify({
+            __email_drafts: [{ id: "existing_draft", source, subject: "Hi" }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("should not create", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const { result, draftId } = await createZohoDraft(
+      { apiDomain: "https://www.zohoapis.com", accessToken: "x", fetchImpl },
+      {
+        leadId: "L01",
+        email: "a@b.com",
+        fullName: "A",
+        company: "C",
+        subject: "Hi",
+        body: "Body",
+        idempotencyKey: "csv_L01",
+      },
+    );
+    expect(result.status).toBe("verified");
+    expect(draftId).toBe("existing_draft");
+    expect(result.detail).toMatch(/Idempotent/i);
+  });
+
+  it("falls back to Lead Owner email when from_addresses is empty", async () => {
+    const zohoLeadId = "1445645000000549005";
+    const draftId = "draft_owner";
+    const source = draftSourceKey("csv_L01");
+    let listCalls = 0;
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/Leads/search")) {
+        return new Response(JSON.stringify({ data: [{ id: zohoLeadId }] }), { status: 200 });
+      }
+      if (u.includes(`/Leads/${zohoLeadId}`) && u.includes("fields=Owner")) {
+        return new Response(
+          JSON.stringify({
+            data: [{ Owner: { email: "owner@example.com", name: "Owner" } }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.includes("/__email_drafts") && (!init?.method || init.method === "GET")) {
+        listCalls += 1;
+        if (listCalls >= 2) {
+          return new Response(
+            JSON.stringify({ __email_drafts: [{ id: draftId, source }] }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ __email_drafts: [] }), { status: 200 });
+      }
+      if (u.includes("/from_addresses")) {
+        return new Response(JSON.stringify({ from_addresses: [] }), { status: 200 });
+      }
+      if (u.includes("/__email_drafts") && init?.method === "POST") {
+        expect(String(init.body)).toContain("owner@example.com");
+        return new Response(
+          JSON.stringify({
+            __email_drafts: [{ status: "success", details: { id: draftId } }],
+          }),
+          { status: 201 },
+        );
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const { result, errors, draftId: createdId } = await createZohoDraft(
+      { apiDomain: "https://www.zohoapis.com", accessToken: "x", fetchImpl },
+      {
+        leadId: "L01",
+        email: "a@b.com",
+        fullName: "A",
+        company: "C",
+        subject: "Hi",
+        body: "Body",
+        idempotencyKey: "csv_L01",
+      },
+    );
+    expect(result.status).toBe("verified");
+    expect(createdId).toBe(draftId);
+    expect(errors).toEqual([]);
+  });
+
+  it("fails clearly when no from address and no owner email", async () => {
+    const zohoLeadId = "1445645000000549005";
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/Leads/search")) {
+        return new Response(JSON.stringify({ data: [{ id: zohoLeadId }] }), { status: 200 });
+      }
+      if (u.includes(`/Leads/${zohoLeadId}`) && u.includes("fields=Owner")) {
+        return new Response(JSON.stringify({ data: [{ Owner: {} }] }), { status: 200 });
+      }
+      if (u.includes("/__email_drafts") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify({ __email_drafts: [] }), { status: 200 });
+      }
+      if (u.includes("/from_addresses")) {
+        return new Response(JSON.stringify({ from_addresses: [] }), { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
     const { result, errors } = await createZohoDraft(
       { apiDomain: "https://www.zohoapis.com", accessToken: "x", fetchImpl },
       {
@@ -205,15 +462,27 @@ describe("Zoho adapter (draft-only)", () => {
       },
     );
     expect(result.status).toBe("failed");
-    expect(errors[0]?.code).toBe("ZOHO_DRAFT_FAILED");
+    expect(errors[0]?.code).toBe("ZOHO_FROM_ADDRESS_MISSING");
   });
 
-  it("marks created on success without sending", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify({ data: [{ details: { id: "1" } }] }), {
-        status: 201,
-      }),
-    ) as unknown as typeof fetch;
+  it("still supports qualification Notes mode as fallback", async () => {
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/Leads/search")) {
+        return new Response(JSON.stringify({ data: [{ id: "1445645000000549005" }] }), {
+          status: 200,
+        });
+      }
+      if (u.includes("/Notes") && init?.method === "POST") {
+        expect(String(init.body)).toMatch(/\[DRAFT ONLY/);
+        expect(String(init.body)).toContain("send_attempted=false");
+        return new Response(JSON.stringify({ data: [{ details: { id: "1" } }] }), {
+          status: 201,
+        });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
     const { result, errors } = await createZohoDraft(
       { apiDomain: "https://www.zohoapis.com", accessToken: "x", fetchImpl },
       {
@@ -222,16 +491,13 @@ describe("Zoho adapter (draft-only)", () => {
         fullName: "A",
         company: "C",
         subject: "Hi",
-        body: "Body",
+        body: "Qual body",
         idempotencyKey: "csv_L01",
+        mode: "qualification_description",
       },
     );
     expect(result.status).toBe("created");
-    expect(result.mode).toBe("draft_only");
     expect(errors).toEqual([]);
-    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-    expect(String(init.body)).toMatch(/\[DRAFT ONLY/);
-    expect(String(init.body)).toContain("send_attempted=false");
   });
 });
 

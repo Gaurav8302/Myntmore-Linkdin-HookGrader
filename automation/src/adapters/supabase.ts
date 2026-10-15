@@ -108,9 +108,13 @@ export async function persistDraftArtifact(
   }
 }
 
-/** Shape aligned with Task 1 leads schema + qualification metadata. */
+/**
+ * Shape aligned with Task 1 leads schema + qualification metadata.
+ * Optional contact fields that are null are omitted so retries never wipe
+ * previously populated company/website/linkedin values with null.
+ */
 export function toLeadRow(lead: ProcessedLead): Record<string, unknown> {
-  return {
+  const row: Record<string, unknown> = {
     idempotency_key: lead.idempotencyKey,
     external_session_id: lead.leadId,
     source: lead.source,
@@ -119,11 +123,8 @@ export function toLeadRow(lead: ProcessedLead): Record<string, unknown> {
     first_name: lead.clean.normalized.firstName,
     last_name: lead.clean.normalized.lastName,
     full_name: lead.clean.normalized.fullName,
-    designation: lead.clean.normalized.designation,
+    designation: lead.clean.normalized.designation || null,
     email: lead.clean.normalized.email,
-    company: lead.clean.normalized.company,
-    company_website: lead.clean.normalized.companyWebsite,
-    linkedin_url: lead.clean.normalized.linkedinUrl,
     tool_input: lead.clean.normalized.toolInput,
     tool_output: lead.clean.normalized.toolOutput,
     clean_flags: lead.clean.flags,
@@ -167,7 +168,23 @@ export function toLeadRow(lead: ProcessedLead): Record<string, unknown> {
       qualification_version: lead.qualification.version,
       draft_artifact_id: lead.draftArtifact?.draft_id ?? null,
       draft_artifact: lead.draftArtifact,
+      zoho_draft_id: lead.zoho.draftId ?? null,
       send_attempted: false,
     },
   };
+
+  if (lead.zoho.zohoLeadId) {
+    row.zoho_lead_id = lead.zoho.zohoLeadId;
+  }
+
+  // Only write optional contact fields when present (preserve prior non-null on merge).
+  if (lead.clean.normalized.company) row.company = lead.clean.normalized.company;
+  if (lead.clean.normalized.companyWebsite) {
+    row.company_website = lead.clean.normalized.companyWebsite;
+  }
+  if (lead.clean.normalized.linkedinUrl) {
+    row.linkedin_url = lead.clean.normalized.linkedinUrl;
+  }
+
+  return row;
 }

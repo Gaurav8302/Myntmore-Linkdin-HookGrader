@@ -6,11 +6,21 @@ interface RewriteCardProps {
   index: number
   hook: string
   reason: string
+  score?: number
+  scoreDelta?: number
   onCopy: (text: string) => void
   isFallback: boolean
 }
 
-export function RewriteCard({ index, hook, reason, onCopy, isFallback }: RewriteCardProps) {
+export function RewriteCard({
+  index,
+  hook,
+  reason,
+  score,
+  scoreDelta,
+  onCopy,
+  isFallback,
+}: RewriteCardProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -24,6 +34,13 @@ export function RewriteCard({ index, hook, reason, onCopy, isFallback }: Rewrite
     }
   }
 
+  const deltaLabel =
+    typeof scoreDelta === 'number'
+      ? scoreDelta > 0
+        ? `+${scoreDelta}`
+        : String(scoreDelta)
+      : null
+
   return (
     <article
       className={`flex h-full flex-col rounded-2xl border p-5 ${
@@ -33,10 +50,14 @@ export function RewriteCard({ index, hook, reason, onCopy, isFallback }: Rewrite
       }`}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h4 className="font-bold text-myntmore-ink">Rewrite {index}</h4>
-        {isFallback ? (
+        <h4 className="font-bold text-myntmore-ink">Alternative {index}</h4>
+        {typeof score === 'number' ? (
+          <span className="rounded-full bg-myntmore-soft px-2 py-0.5 text-xs font-semibold text-myntmore-ink">
+            {score}/100{deltaLabel ? ` (${deltaLabel})` : ''}
+          </span>
+        ) : isFallback ? (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-            Fallback
+            Partial set
           </span>
         ) : null}
       </div>

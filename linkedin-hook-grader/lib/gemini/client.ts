@@ -13,6 +13,10 @@ export const NVIDIA_MODEL =
 export type Rewrite = {
   hook: string
   reason: string
+  /** Deterministic scoreHook result for this alternative (feedback only). */
+  score?: number
+  /** candidateScore - originalScore (may be zero or negative). */
+  scoreDelta?: number
 }
 
 export type NvidiaResponse = {

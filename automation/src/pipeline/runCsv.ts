@@ -1,4 +1,5 @@
-import { classifyBatch } from "../clean/classify.js";
+import { resolveZohoClient } from "../adapters/resolveZohoClient.js";
+import { createDuplicateIndex } from "../clean/classify.js";
 import { AppConfig } from "../config.js";
 import { importLeadsCsv } from "../import/csv.js";
 import {
@@ -6,15 +7,17 @@ import {
   toRowObservation,
 } from "../observability.js";
 import { PipelineSummary, ProcessedLead, RoutingTier } from "../types.js";
-import { processLead } from "./processLead.js";
+import { processIncomingLead } from "./processIncomingLead.js";
 
 export async function runCsvPipeline(config: AppConfig): Promise<PipelineSummary> {
   const { rows, parseWarnings } = await importLeadsCsv(config.leadsCsvPath);
-  const cleans = classifyBatch(rows);
+  const duplicates = createDuplicateIndex();
+  // Resolve once per run so access tokens are reused across leads (refresh only on expiry).
+  const zoho = await resolveZohoClient(config);
 
   const leads: ProcessedLead[] = [];
   for (let i = 0; i < rows.length; i += 1) {
-    const processed = await processLead(rows[i], cleans[i], {
+    const processed = await processIncomingLead(rows[i], {
       email: {
         apiKey: config.nvidiaApiKey || config.geminiApiKey,
         model: config.nvidiaModel || config.geminiModel,
@@ -28,7 +31,9 @@ export async function runCsvPipeline(config: AppConfig): Promise<PipelineSummary
         mode: config.pipelineMode,
       },
       zohoSendMode: config.zohoSendMode,
+      zoho,
       source: "csv",
+      duplicates,
     });
     leads.push(processed);
   }

@@ -1,28 +1,21 @@
-# leads.csv vs .gitignore conflict
+# leads.csv vs .gitignore — resolved
 
-## Facts
+## Facts (verified 2026-10-17)
 
 - Assignment expects the fictional `leads.csv` in the **public GitHub submission**.
-- Root `.gitignore` currently contains `leads.csv` (line ~56).
-- File exists on disk with 20 fictional rows and is used by Task 1.
-- Cursor must not modify root `.gitignore` without approval.
+- Root `.gitignore` does **not** ignore `leads.csv` (comment only under “Assignment specific”).
+- `git ls-files leads.csv` shows the file is **tracked**.
+- File remains read-only for agents: do not modify lead content.
 
-## Smallest safe correction (proposed)
+## Historical note
 
-In root `.gitignore`, **remove** the `leads.csv` line under “Assignment specific”, OR replace it with a comment:
+An earlier draft ignored `leads.csv`. That conflict was fixed by removing the ignore rule and committing the fictional sample. No further `.gitignore` change is required for submission.
 
-```gitignore
-# leads.csv is fictional assignment data and MUST be committed for submission.
-# Do not ignore it.
-```
+## Optional hygiene (not required)
 
-Optionally keep ignoring real PII exports if any:
+If real PII exports appear later, ignore those instead:
 
 ```gitignore
 leads.local.csv
 leads.production.csv
 ```
-
-## Approval needed
-
-Please approve the root `.gitignore` one-line change. Cursor will not apply it until then.

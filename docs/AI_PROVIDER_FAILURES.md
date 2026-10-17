@@ -33,5 +33,5 @@ Earlier production smoke hit `NVIDIA_UNAVAILABLE` because the model sometimes wr
 - Vision-capable instruct model used for text JSON rewrites (smallest live-tested chat model for this key).
 - Vercel must receive `NVIDIA_API_KEY` as a **server** env var (not `NEXT_PUBLIC_*`).
 - Vercel Hobby cron for webhook retries is daily (`0 12 * * *`), not every minute.
-- Genuine Zoho **email-composer draft** remains unsupported by available MCPs (`sendMail` is send-only and must not be called).
-- Make → n8n bridge needs a reachable n8n URL (localtunnel when n8n stays local).
+- Zoho: never use `sendMail`. Native `__email_drafts` via OAuth refresh token is documented separately in [`../automation/docs/ZOHO_DRAFT_CAPABILITY.md`](../automation/docs/ZOHO_DRAFT_CAPABILITY.md) (do not treat MCP tool gaps as the full story).
+- Make → n8n bridge needs a reachable public tunnel URL when n8n stays local.

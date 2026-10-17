@@ -97,7 +97,7 @@
 ## Audit snapshot (2026-10-14)
 
 - Hook Grader: `next build` OK; Vitest **57 pass / 8 fail**; `tsc` errors in tests; no local env; scoring code-based + deterministic sample check.
-- Task 1: Vitest **36/36**; CSV **20/20** (Hot 12 / Warm 2 / Not a fit 6); n8n exec 1–4 **success**; Data Table interim; Zoho/Supabase live UNVERIFIED; Make deferred.
+- Task 1 (2026-10-17 re-check): Vitest **56/57** (Notes-mode fallback failing); CSV dry-run **20/20** (Hot 12 / Warm 2 / Not a fit 6); Hook Grader Vitest **108/108**; Make bridge E2E documented 2026-10-15; Zoho native draft path documented in `ZOHO_DRAFT_CAPABILITY.md`. Older “36/36” / “75/75” figures are obsolete.
 - Zoho MCP: module/record CRUD + workflows — **no dedicated email-draft tool proven**.
 - Git: repo initialized, **no commits**; entire tree untracked; preserve all useful files.
 

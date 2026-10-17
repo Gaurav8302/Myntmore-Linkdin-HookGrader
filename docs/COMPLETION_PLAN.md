@@ -1,5 +1,7 @@
 # Completion Plan — Post Ownership Audit (2026-10-14)
 
+> **Note (2026-10-17):** Much of this checklist is historical. For current verified test counts, live URL, Loom, and lead tiers, use the root [`README.md`](../README.md). Make bridge and Zoho draft evidence: [`MAKE_BRIDGE_STATUS.md`](./MAKE_BRIDGE_STATUS.md), [`../automation/docs/ZOHO_DRAFT_CAPABILITY.md`](../automation/docs/ZOHO_DRAFT_CAPABILITY.md). `leads.csv` is already tracked (gitignore conflict resolved).
+
 **Basis:** Repository inspection + non-destructive test runs. Assignment DOCX/TXT takes precedence over older planning notes that split ownership or treated Task 1 as Make-primary.
 
 ---

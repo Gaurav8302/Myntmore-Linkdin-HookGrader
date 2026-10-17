@@ -2,12 +2,16 @@
 
 ## Runtime (authoritative)
 
+**n8n** orchestrates Task 1. Supporting TypeScript mirrors the same rules for tests and CLI.
+
+### CSV dry-run (n8n)
+
 ```
 n8n Manual Trigger (CSV dry-run)
     │
     ▼
 Code: Import Clean Score Route Draft
-  (20 CSV rows embedded; clean → score → route → template draft → Zoho plan)
+  (20 CSV rows; clean → qualify → score → route → draft artifact → Zoho plan)
     │                    └── onError → Log Engine Failure ──┐
     ▼                                                       │
 Switch: Hot / Warm / Not a fit / Unexpected                 │
@@ -16,29 +20,55 @@ Switch: Hot / Warm / Not a fit / Unexpected                 │
 Merge (append) ←────────────────────────────────────────────┘
     │
     ▼
-Data Table upsert on idempotency_key → Build Run Summary
+Upsert (Supabase / interim Data Table) → Build Run Summary
 ```
 
-Make.com Task 2→1 bridge is **out of band** and deferred. When ready, Make.com will forward Hook Grader payloads into an n8n webhook trigger (same clean/score/route path).
+Workflow ID: `RPh6nEfzP2mq7GFj`. Engine source: `workflows/n8n-code/process-leads.js`.
+
+### Make.com Task 2 → Task 1 (mandatory bridge)
+
+```
+Hook Grader outbox → MAKE_WEBHOOK_URL (Make scenario 7960198)
+    → HTTP forward → public tunnel → n8n /webhook/myntmore-hook-grader
+    → local bridge POST http://127.0.0.1:8791/process-incoming
+    → processIncomingLead() → Supabase + Zoho draft-only
+```
+
+Details and dated E2E evidence: [`../../docs/MAKE_BRIDGE_STATUS.md`](../../docs/MAKE_BRIDGE_STATUS.md).
+
+Tunnel hostnames are temporary. Updating `N8N_PUBLIC_BASE_URL` in `.env.local` does **not** update Make — edit the scenario module URL.
 
 ## Supporting TypeScript (`automation/src`)
 
 ```
-leads.csv → import/csv → clean/classify → score/rules → route
+leads.csv → import/csv → clean/classify → qualify → score/rules → route
                               │
                               ▼
-                     email/gemini (+ validator + fallback)
+                     email (NVIDIA + validator + template fallback)
                               │
                               ▼
-              adapters/supabase (dry-run) + adapters/zoho (draft-only)
+              adapters/supabase + adapters/zoho (draft-only, never sendMail)
 ```
 
-Used for unit tests and `npm run process:csv`. Rules must stay aligned with `workflows/n8n-code/process-leads.js`.
+CLI: `npm run process:csv`. Incoming: `npm run process:incoming` / `process:incoming:server`.
+
+Rules must stay aligned with `workflows/n8n-code/process-leads.js`.
+
+## Routing
+
+| Tier | Behaviour |
+|------|-----------|
+| Hot | Score ≥ 8, email-eligible → draft + alert path |
+| Warm | Score 5–7 → one nurture draft |
+| Not a fit | No email draft; reason recorded |
+
+Verified CSV dry-run (2026-10-17): Hot **12** / Warm **2** / Not a fit **6**.
 
 ## Safety
 
-- `ZOHO_SEND_MODE` must be `draft` (CLI) / Zoho nodes draft-only (n8n).
+- `ZOHO_SEND_MODE` must remain `draft`.
 - No send API.
 - Not-a-fit leads never get email drafts.
 - Prompt-injection content cannot raise scores or force Hot.
-- Failures are visible as `errors[]` / `disposition=failed` vs expected `excluded`.
+- Failures surface as `errors[]` / `disposition=failed` vs expected `excluded`.
+- Zoho native draft capability: [`ZOHO_DRAFT_CAPABILITY.md`](./ZOHO_DRAFT_CAPABILITY.md).

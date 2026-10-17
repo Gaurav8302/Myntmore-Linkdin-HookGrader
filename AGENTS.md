@@ -20,7 +20,7 @@ Do **not** run two agents against the same files concurrently.
 4. **Git safety**: no `git add .` / `git add -A`; no commits/pushes/history rewrites without separate authorization; never amend another agent's work.
 5. **Secrets**: no API keys, credentials, or real lead data in Git. `.env.example` placeholders only.
 6. **Honest reporting**: do not claim live integrations work without evidence.
-7. **`leads.csv`**: read-only. Do not modify. Root `.gitignore` currently ignores it — document the smallest fix and wait for Human approval before changing `.gitignore`.
+7. **`leads.csv`**: read-only. Do not modify. Fictional sample is tracked in Git for public submission (gitignore conflict resolved — see `automation/docs/GITIGNORE_CONFLICT.md`).
 
 ## Document locations
 

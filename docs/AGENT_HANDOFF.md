@@ -1,7 +1,7 @@
 # Agent Handoff — Myntmore Assignment
 
-**Status:** Ownership transferred — Cursor is sole active implementer  
-**Updated:** 2026-10-14 (audit / handoff iteration)
+**Status:** Cursor is sole active implementer  
+**Updated:** 2026-10-17 (documentation / verification pass)
 
 ---
 
@@ -11,34 +11,38 @@
 |------|-------|-------|
 | Entire `linkedin-hook-grader/` (Task 2) | **Cursor** | Preserve OpenCode work; repair incrementally |
 | Entire `automation/` (Task 1) | **Cursor** | n8n orchestrates E2E; TS = rules/tests/CLI |
-| Make.com Task 2 → Task 1 bridge | **Cursor** | Deferred until contract verified against code |
-| Shared `/docs/`, `/supabase/`, root config | **Cursor** (with Human approval for migrations / `.gitignore`) | Reconcile deliberately |
+| Make.com Task 2 → Task 1 bridge | **Cursor** | Scenario `7960198` — see `MAKE_BRIDGE_STATUS.md` |
+| Shared `/docs/`, `/supabase/`, root config | **Cursor** (Human approval for risky migrations) | Change deliberately |
 | Accounts, secrets, Loom, submission PDF | **Human** | Auth, approvals, manual demo recording |
 | OpenCode | — | Prior Task 2 author; do not run concurrently |
 
 ## Human-only actions
 
-- Create/link Supabase, Vercel, Make.com, Gemini, Zoho, GitHub, Loom accounts
+- Create/link Supabase, Vercel, Make.com, NVIDIA, Zoho, GitHub, Loom accounts
 - Provide API keys / OAuth (never commit secrets)
-- Approve shared migration text and root `.gitignore` `leads.csv` fix
-- Record Loom (5–7 min, camera on, 4 segments) and submit PDF
+- Approve shared migration changes when schema conflicts arise
+- Keep Make → n8n tunnel URL updated when Quick Tunnel restarts
+- Record Loom and submit PDF if still required by the recruiter process
 
-## Collaboration rules (post-transfer)
+## Collaboration rules
 
 1. **Preserve existing work** under both app directories. Do not scaffold over working files.
-2. **API contract** (`linkedin-hook-grader/docs/API_CONTRACT.md`) is provisional until verified against route + outbox + Task 1 ingest fields.
-3. **n8n** = Task 1 runtime. **Make.com** = only Task 2→1 bridge (assignment-mandated).
-4. **No concurrent dual-agent edits** on the same paths during/after transfer.
-5. Report tested vs mocked vs unverified honestly.
+2. **n8n** = Task 1 runtime. **Make.com** = only Task 2→1 bridge (assignment-mandated).
+3. **No concurrent dual-agent edits** on the same paths.
+4. Report tested vs mocked vs unverified honestly.
+5. **`leads.csv`** is fictional sample data, tracked in Git (gitignore conflict resolved — see `automation/docs/GITIGNORE_CONFLICT.md`).
 
-## Current phase (audit)
+## Current snapshot (2026-10-17)
 
-| Phase | Status | Owner |
-|-------|--------|-------|
-| 0: Prerequisites (accounts/keys) | Partial — `leads.csv` present; many live creds missing | Human |
-| 1: Hook Grader complete + green tests | In progress — app exists; **8/65 tests failing** | Cursor |
-| 2: Task 1 n8n + Supabase + Zoho draft | In progress — n8n dry-run works; Supabase/Zoho live unverified | Cursor |
-| 3: Make.com bridge E2E | Blocked on contract + credentials | Cursor + Human |
-| 4: Vercel deploy + Loom + submit | Not started | Human + Cursor |
+| Area | Status |
+|------|--------|
+| Hook Grader deploy | Live at https://myntmore-linkedin-hook-grader.vercel.app |
+| Hook Grader tests | 108/108 unit; lint + build green |
+| Automation tests | 56/57 (Notes-mode fallback failing); typecheck duplicate export |
+| CSV dry-run tiers | Hot 12 / Warm 2 / Not a fit 6 |
+| Make bridge | Documented E2E 2026-10-15; depends on local tunnel |
+| Zoho native drafts | Live OAuth path documented in `automation/docs/ZOHO_DRAFT_CAPABILITY.md` |
+| Loom | https://www.loom.com/share/39ce810ae73d4f318bd3fbf4691f0bc3 |
 
-See `docs/COMPLETION_PLAN.md` for prioritized next steps from the 2026-10-14 audit.
+Authoritative recruiter summary: [`../README.md`](../README.md).  
+Completion checklist history: [`COMPLETION_PLAN.md`](./COMPLETION_PLAN.md) (may lag; prefer root README).

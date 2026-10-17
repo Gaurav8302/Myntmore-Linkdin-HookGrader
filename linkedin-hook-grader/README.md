@@ -1,19 +1,20 @@
 # LinkedIn Hook Grader (Task 2)
 
-A Next.js application that grades LinkedIn post hooks deterministically and generates AI-powered rewrites.
+Next.js app that grades LinkedIn post hooks with deterministic rules and generates three AI-powered rewrites. Sessions persist in Supabase; Make.com receives durable webhook deliveries for Task 1.
+
+**Live URL:** https://myntmore-linkedin-hook-grader.vercel.app  
+**Walkthrough:** https://www.loom.com/share/39ce810ae73d4f318bd3fbf4691f0bc3 (repo Loom — not this app’s URL)
 
 ## Features
 
-- **Deterministic Scoring**: 6 explicit rules, same input = same score (0-100)
-- **AI Rewrites**: 3 structured rewrites from **NVIDIA NIM** (`meta/llama-3.2-11b-vision-instruct`, live-tested)
-- **Supabase Persistence**: Atomic session + outbox insert via PostgreSQL RPC
-- **Durable Webhook Delivery**: Outbox pattern + Vercel Cron (minute-aligned retries)
-- **Safe Fallbacks**: NVIDIA failures return 200 with `fallback: true` and original hook echoed
-- **Live URL**: https://myntmore-linkedin-hook-grader.vercel.app
-- **Vercel Ready**: Deploy with project root `linkedin-hook-grader/`
-- **Gemini**: abandoned after observed HTTP 404 / quota — see `/docs/AI_PROVIDER_FAILURES.md`
+- **Deterministic scoring** — 6 explicit rules, same input → same score (0–100); score is never from the model
+- **AI rewrites** — exactly 3 structured rewrites from **NVIDIA NIM** (`meta/llama-3.2-11b-vision-instruct`)
+- **Supabase persistence** — atomic session + outbox insert via PostgreSQL RPC
+- **Durable Make.com delivery** — outbox pattern + Vercel Cron; `idempotency_key = hook_grader_<session_id>`
+- **Safe fallbacks** — NVIDIA failures return 200 with `fallback: true` and original hook echoed
+- **Gemini** — abandoned after observed HTTP 404 / quota — see [`../docs/AI_PROVIDER_FAILURES.md`](../docs/AI_PROVIDER_FAILURES.md)
 
-## Quick Start
+## Quick start
 
 ```bash
 cd linkedin-hook-grader
@@ -23,7 +24,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-## Environment Variables
+## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -32,150 +33,100 @@ npm run dev
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key for server |
 | `NVIDIA_API_KEY` | Yes | NVIDIA API key (server-only) |
 | `NVIDIA_MODEL` | No | Default `meta/llama-3.2-11b-vision-instruct` |
-| `MAKE_WEBHOOK_URL` | Yes | Exact Make.com webhook URL |
+| `MAKE_WEBHOOK_URL` | Yes | Exact Make.com webhook URL (Hook Grader → Make) |
 | `MAKE_WEBHOOK_SECRET` | Optional | HMAC secret for verification |
-| `NEXT_PUBLIC_APP_URL` | Yes | Vercel deployment URL |
+| `NEXT_PUBLIC_APP_URL` | Yes | Public app URL |
 | `WEBHOOK_CRON_SECRET` | Yes | Vercel Cron auth secret |
 
-## Project Structure
+Never put secrets in `NEXT_PUBLIC_*`.
+
+## Project structure
 
 ```
 linkedin-hook-grader/
 ├── app/
 │   ├── api/
-│   │   ├── grade-hook/route.ts          # Main grading endpoint
-│   │   └── cron/process-webhooks/route.ts # Vercel Cron processor
+│   │   ├── grade-hook/route.ts
+│   │   └── cron/process-webhooks/route.ts
 │   ├── layout.tsx
-│   ├── page.tsx                          # Main UI (landing + form + results)
+│   ├── page.tsx
 │   └── globals.css
 ├── components/
-│   ├── HookGraderForm.tsx
-│   ├── HookGraderResults.tsx
-│   ├── RewriteCard.tsx
-│   └── LoadingState.tsx
 ├── lib/
-│   ├── scoring/
-│   │   ├── constants.ts      # Configurable weights & thresholds
-│   │   ├── rules.ts          # 6 pure rule functions
-│   │   ├── index.ts          # Main scoreHook() entry point
-│   │   └── __tests__/rules.test.ts
-│   ├── gemini/               # (path kept) NVIDIA NIM rewrite client
-│   │   ├── client.ts         # NVIDIA chat completions client
-│   │   ├── prompt.ts         # System prompt + user template
-│   │   ├── rewrite.ts        # Generate rewrites + fallback
-│   │   └── __tests__/rewrite.test.ts
+│   ├── scoring/          # Deterministic 0–100 score
+│   ├── gemini/           # Path kept; NVIDIA NIM rewrite client
 │   ├── supabase/
-│   │   ├── server.ts         # Service-role client
-│   │   ├── types.ts          # TypeScript interfaces
-│   │   └── queries.ts        # Atomic RPC + outbox helpers
-│   └── webhook/
-│       ├── make.ts           # Make.com delivery client
-│       ├── outbox.ts         # Cron processor
-│       └── __tests__/
+│   └── webhook/          # Make.com client + outbox processor
 ├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── API_CONTRACT.md
-│   └── SCORING_SPEC.md
 ├── e2e/
-│   └── hook-grader.spec.ts
-├── vercel.json               # Cron schedule
-├── vitest.config.ts
-├── playwright.config.ts
+├── vercel.json           # Cron schedule (Hobby: daily)
 └── package.json
 ```
 
-## Scoring Rules
+## Scoring rules
 
 | Rule | Weight | Description |
 |------|--------|-------------|
-| Length | 20% | 80-160 chars optimal |
-| Curiosity Gap | 20% | ? or curiosity words |
+| Length | 20% | 80–160 chars optimal |
+| Curiosity Gap | 20% | `?` or curiosity words |
 | Specificity | 20% | Numbers, timeframes, proper nouns |
-| Authority | 17 pts | First-person (I/I've/we/…) + outcome verb (helped, built, grew, grown, …); no invented claims |
-| Action | 17 pts | Imperative start, playbook phrase, or reader-focused you/your question/CTA |
-| Clickbait Penalty | -10% | ALL CAPS, excessive !, clickbait phrases |
+| Authority | 17 pts | First-person + outcome verb |
+| Action | 17 pts | Imperative / playbook / reader-focused CTA |
+| Clickbait Penalty | −10% | ALL CAPS, excessive `!`, clickbait phrases |
 
-## API Contract
+Full detail: [`docs/SCORING_SPEC.md`](docs/SCORING_SPEC.md).
 
-### POST /api/grade-hook
+## API (summary)
 
-**Request:**
-```json
-{
-  "name": "string",
-  "designation": "string",
-  "email": "string",
-  "hook": "string"
-}
-```
+`POST /api/grade-hook` with `{ name, designation?, email, hook }` → `{ sessionId, score, failedRules, passedRules, rewrites[3], fallback }`.
 
-**Response (200):**
-```json
-{
-  "sessionId": "uuid",
-  "score": 87,
-  "failedRules": ["..."],
-  "passedRules": ["..."],
-  "rewrites": [{"hook": "...", "reason": "..."}, ...],
-  "fallback": false
-}
-```
+On AI failure: still **200** with `fallback: true`. Persistence failure: **500**.
 
-**Fallback Response (200):**
-```json
-{
-  "fallback": true,
-  "fallbackReason": "GEMINI_TIMEOUT|GEMINI_SCHEMA_ERROR|GEMINI_RATE_LIMIT|GEMINI_UNAVAILABLE",
-  "rewrites": [{"hook": "<original>", "reason": "AI unavailable — original hook shown"}, ...]
-}
-```
-
-**Errors:**
-- 400: Validation failed
-- 429: Rate limited
-- 500: Persistence failed (atomic transaction)
+Full contract: [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
 
 ## Commands
 
 ```bash
-npm run dev          # Start dev server
+npm run dev          # Dev server
 npm run build        # Production build
 npm run lint         # ESLint
-npm run test         # Unit tests (vitest)
+npm run test         # Unit tests (Vitest)
 npm run test:watch   # Watch mode
-npm run test:e2e     # E2E tests (Playwright)
+npm run test:e2e     # Playwright e2e
 ```
 
-## Database Setup
+### Latest verification (2026-10-17)
 
-Run the migration in Supabase SQL editor:
+| Check | Result |
+|-------|--------|
+| `npm test` | **108/108** passed |
+| `npm run lint` | Clean |
+| `npm run build` | Succeeded |
+| Live site HTTP | **200** |
 
-```sql
--- See supabase/migrations/001_hook_grader_schema.sql
--- Creates: hook_grader_sessions, webhook_outbox, webhook_deliveries
--- Creates: insert_hook_grader_session() RPC function
-```
+## Database
+
+Apply migrations in Supabase SQL editor (shared repo folder):
+
+- `../supabase/migrations/001_hook_grader_schema.sql` — sessions, outbox, deliveries, RPC
+- Later migrations for Task 1 / outbox fixes as needed
 
 ## Deployment
 
-1. Push to GitHub
-2. Import in Vercel (root directory: `linkedin-hook-grader/`)
-3. Add environment variables in Vercel dashboard
-4. Deploy - Vercel Cron runs automatically every minute
+1. Connect GitHub repo in Vercel
+2. Set **Root Directory** to `linkedin-hook-grader/`
+3. Add environment variables (including server-only `NVIDIA_API_KEY` and `MAKE_WEBHOOK_URL`)
+4. Deploy
+
+Cron: `vercel.json` schedules `/api/cron/process-webhooks` at `0 12 * * *` (Vercel Hobby daily). In-request outbox flush is also used so Make can receive grades without waiting for cron.
 
 ## Integration with Task 1
 
-The webhook payload is sent to `MAKE_WEBHOOK_URL` via the outbox pattern.
-Make.com must deduplicate on `idempotency_key` (`hook_grader_<session_id>`).
-See `docs/API_CONTRACT.md` for full payload specification.
+Outbox posts to `MAKE_WEBHOOK_URL`. Make.com scenario `7960198` forwards to local n8n via a public tunnel. Task 1 deduplicates on `idempotency_key`.
 
-## Testing
+- Bridge ops: [`../docs/MAKE_BRIDGE_STATUS.md`](../docs/MAKE_BRIDGE_STATUS.md)
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
-All external integrations are **UNVERIFIED** until tested with real credentials:
-- Supabase (PostgreSQL + RPC)
-- Google Gemini 2.5 Flash
-- Make.com webhook
-- Vercel Cron
-- End-to-end flow
+## UI note
 
-Run tests with `npm run test` and `npm run test:e2e`.
+Light Myntmore tool-page pattern (white canvas, black type, yellow `#ffc247` CTAs) aligned with [LinkedIn Profile Optimizer](https://www.myntmore.com/tools/linkedin-optimizer).

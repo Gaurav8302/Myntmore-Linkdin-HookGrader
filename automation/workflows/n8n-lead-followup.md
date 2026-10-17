@@ -34,8 +34,8 @@ Not-fit rows have **no** `draft_artifact`.
 
 ## Safety
 
-- Zoho Email Drafts API: permission-blocked; qualification shown in Lead Description instead.
-- No `sendMail` path.
+- Draft-only: no `sendMail` path. Native Zoho `__email_drafts` when OAuth + live bridge are configured — see [`../docs/ZOHO_DRAFT_CAPABILITY.md`](../docs/ZOHO_DRAFT_CAPABILITY.md).
+- Qualification / Description updates remain available as CRM visibility without sending mail.
 - Retries upsert on stable `draft_id` / idempotency key.
 - Prompt injection cannot force Hot.
 

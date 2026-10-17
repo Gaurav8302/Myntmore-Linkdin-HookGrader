@@ -1,6 +1,6 @@
 # Assignment Analysis — Myntmore Systems & AI Automation Intern Round 2
 
-**Source document:** `Systems + AI Automation Intern - Round 2 Assignment.docx` (5 pages, converted to text)
+**Source:** Derived from the Round 2 assignment brief (original `.docx` / `.txt` removed from the repository; this analysis remains as the working summary).
 
 ---
 
